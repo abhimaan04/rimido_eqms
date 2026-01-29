@@ -2,18 +2,25 @@ import { Request, Response, NextFunction } from 'express';
 import { pool } from '../database/connection';
 import crypto from 'crypto';
 
-export interface AppError extends Error {
-  statusCode?: number;
-  isOperational?: boolean;
+export class AppError extends Error {
+  statusCode: number;
+  isOperational: boolean;
+
+  constructor(message: string, statusCode: number = 500) {
+    super(message);
+    this.statusCode = statusCode;
+    this.isOperational = true;
+    Error.captureStackTrace(this, this.constructor);
+  }
 }
 
 export const errorHandler = (
-  err: AppError,
+  err: AppError | Error,
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  const statusCode = err.statusCode || 500;
+  const statusCode = (err instanceof AppError ? err.statusCode : undefined) || 500;
   const message = err.message || 'Internal Server Error';
 
   // Log error to audit trail
@@ -38,12 +45,14 @@ export const errorHandler = (
   });
 };
 
-async function logErrorToAudit(userId: string, error: AppError, req: Request) {
+async function logErrorToAudit(userId: string, error: AppError | Error, req: Request) {
   try {
     const hash = crypto
       .createHash('sha256')
       .update(`${userId}-${Date.now()}-${error.message}`)
       .digest('hex');
+
+    const statusCode = error instanceof AppError ? error.statusCode : 500;
 
     await pool.query(
       `INSERT INTO audit_trail (user_id, action, resource_type, resource_id, new_values, ip_address, user_agent, hash)
@@ -53,7 +62,7 @@ async function logErrorToAudit(userId: string, error: AppError, req: Request) {
         'error',
         'system',
         null,
-        JSON.stringify({ error: error.message, statusCode: error.statusCode }),
+        JSON.stringify({ error: error.message, statusCode }),
         req.ip,
         req.get('user-agent'),
         hash,
@@ -61,16 +70,5 @@ async function logErrorToAudit(userId: string, error: AppError, req: Request) {
     );
   } catch (auditError) {
     console.error('Failed to log error to audit trail:', auditError);
-  }
-}
-
-class AppError extends Error {
-  statusCode: number;
-  isOperational: boolean;
-
-  constructor(message: string, statusCode: number) {
-    super(message);
-    this.statusCode = statusCode;
-    this.isOperational = true;
   }
 }
