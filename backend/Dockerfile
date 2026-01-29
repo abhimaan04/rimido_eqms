@@ -11,4 +11,5 @@ RUN npm run build
 
 EXPOSE 3001
 
-CMD ["npm", "start"]
+CMD ["sh", "-c", "npm run migrate && npm start"]
+
