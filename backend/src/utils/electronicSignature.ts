@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { pool } from '../database/connection';
-import { AppError } from '../middleware/errorHandler';
+import { AppError } from '../errors/AppError';
 
 interface SignatureData {
   userId: string;

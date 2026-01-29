@@ -1,7 +1,7 @@
 import express from 'express';
 import { pool } from '../database/connection';
 import { authenticate } from '../middleware/auth';
-import { AppError } from '../middleware/errorHandler';
+import { AppError } from '../errors/AppError';
 import {
   getDocumentSignatures,
   verifyElectronicSignature,

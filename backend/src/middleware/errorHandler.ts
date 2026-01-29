@@ -1,18 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { pool } from '../database/connection';
 import crypto from 'crypto';
-
-export class AppError extends Error {
-  statusCode: number;
-  isOperational: boolean;
-
-  constructor(message: string, statusCode: number = 500) {
-    super(message);
-    this.statusCode = statusCode;
-    this.isOperational = true;
-    Error.captureStackTrace(this, this.constructor);
-  }
-}
+import { AppError } from '../errors/AppError';
 
 export const errorHandler = (
   err: AppError | Error,
@@ -23,7 +12,6 @@ export const errorHandler = (
   const statusCode = (err instanceof AppError ? err.statusCode : undefined) || 500;
   const message = err.message || 'Internal Server Error';
 
-  // Log error to audit trail
   if (req.user) {
     logErrorToAudit(req.user.id, err, req);
   }

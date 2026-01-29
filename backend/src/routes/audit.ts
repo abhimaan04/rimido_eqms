@@ -2,7 +2,7 @@ import express from 'express';
 import { body, validationResult } from 'express-validator';
 import { pool } from '../database/connection';
 import { authenticate, checkPermission } from '../middleware/auth';
-import { AppError } from '../middleware/errorHandler';
+import { AppError } from '../errors/AppError';
 
 const router = express.Router();
 

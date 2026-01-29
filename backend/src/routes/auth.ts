@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { body, validationResult } from 'express-validator';
 import { pool } from '../database/connection';
-import { AppError } from '../middleware/errorHandler';
+import { AppError } from '../errors/AppError';
 import { authenticate } from '../middleware/auth';
 
 const router = express.Router();

@@ -51,6 +51,25 @@ eqms/
 - PostgreSQL 14+
 - npm or yarn
 
+### Run and keep running (even after closing the terminal)
+
+To run the backend and frontend so they **keep running after you close CMD/PowerShell**:
+
+```bash
+# From project root
+npm install          # installs PM2 at root
+npm run start:pm2   # starts backend + frontend in background
+```
+
+Then open http://localhost:3000 (frontend) and http://localhost:3001 (backend). You can close the terminal — both keep running.
+
+- **Stop:** `npm run stop:pm2`
+- **Status:** `npm run status:pm2`
+- **Logs:** `npm run logs:pm2`
+- **Restart:** `npm run restart:pm2`
+
+See **docs/DEPLOYMENT.md** for full details and for **free online hosting** (Vercel + Railway + Neon).
+
 ### Installation
 
 ```bash
