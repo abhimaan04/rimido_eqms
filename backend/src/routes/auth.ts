@@ -135,8 +135,8 @@ router.post(
           email: user.email,
           roles: user.roles.filter(Boolean),
         },
-        jwtSecret,
-        { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
+        process.env.JWT_SECRET as string,
+        { expiresIn: process.env.JWT_EXPIRES_IN || '24h' } as any
       );
 
       res.json({
