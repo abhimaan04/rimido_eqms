@@ -5,13 +5,26 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import api from '@/lib/api'
 import ModulePageLayout from '@/components/ModulePageLayout'
-import { AlertCircle } from 'lucide-react'
+import { AlertCircle, X } from 'lucide-react'
 
 export default function CAPAManagementPage() {
   const router = useRouter()
   const [user, setUser] = useState<any>(null)
   const [capaList, setCapaList] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [users, setUsers] = useState<any[]>([])
+  const [newCapa, setNewCapa] = useState({
+    title: '',
+    type: 'corrective',
+    source: '',
+    priority: 'medium',
+    description: '',
+    owner_id: '',
+    assigned_to: '',
+    target_completion_date: '',
+  })
 
   useEffect(() => {
     const token = localStorage.getItem('token')
@@ -24,16 +37,48 @@ export default function CAPAManagementPage() {
 
   const loadData = async () => {
     try {
-      const [userRes, capaRes] = await Promise.all([
+      const [userRes, capaRes, usersRes] = await Promise.all([
         api.get('/auth/me'),
         api.get('/capa').catch(() => ({ data: { data: [] } })),
+        api.get('/users').catch(() => ({ data: { data: [] } })),
       ])
       setUser(userRes.data.data)
       setCapaList(capaRes.data.data || [])
+      setUsers(usersRes.data.data || [])
     } catch (e) {
       console.error(e)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleCreateCAPA = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSubmitting(true)
+    try {
+      await api.post('/capa', {
+        ...newCapa,
+        owner_id: newCapa.owner_id || null,
+        assigned_to: newCapa.assigned_to || null,
+        target_completion_date: newCapa.target_completion_date || null,
+      })
+      alert('CAPA created successfully!')
+      setShowCreateModal(false)
+      setNewCapa({
+        title: '',
+        type: 'corrective',
+        source: '',
+        priority: 'medium',
+        description: '',
+        owner_id: '',
+        assigned_to: '',
+        target_completion_date: '',
+      })
+      loadData()
+    } catch (error: any) {
+      alert(error.response?.data?.message || 'Failed to create CAPA')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -45,7 +90,7 @@ export default function CAPAManagementPage() {
       imageUrl="https://images.unsplash.com/photo-1450101499163-c8848c66ca85?w=1200&q=80"
       imageAlt="Quality and improvement"
       newButtonLabel="New CAPA"
-      newButtonHref="#new-capa"
+      newButtonOnClick={() => setShowCreateModal(true)}
       accentColor="red"
     >
       <div className="grid lg:grid-cols-3 gap-8">
@@ -115,6 +160,145 @@ export default function CAPAManagementPage() {
           </div>
         </div>
       </div>
+
+      {/* Create CAPA Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+              <h3 className="text-xl font-semibold text-slate-900">Create New CAPA</h3>
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            <form onSubmit={handleCreateCAPA} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Title *</label>
+                <input
+                  type="text"
+                  required
+                  value={newCapa.title}
+                  onChange={(e) => setNewCapa({ ...newCapa, title: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                  placeholder="CAPA title"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Type *</label>
+                  <select
+                    required
+                    value={newCapa.type}
+                    onChange={(e) => setNewCapa({ ...newCapa, type: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                  >
+                    <option value="corrective">Corrective</option>
+                    <option value="preventive">Preventive</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Priority *</label>
+                  <select
+                    required
+                    value={newCapa.priority}
+                    onChange={(e) => setNewCapa({ ...newCapa, priority: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="critical">Critical</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Source *</label>
+                <select
+                  required
+                  value={newCapa.source}
+                  onChange={(e) => setNewCapa({ ...newCapa, source: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                >
+                  <option value="">Select source...</option>
+                  <option value="customer_complaint">Customer Complaint</option>
+                  <option value="internal_audit">Internal Audit</option>
+                  <option value="non_conformance">Non-Conformance</option>
+                  <option value="post_market">Post-Market Surveillance</option>
+                  <option value="software_defect">Software Defect</option>
+                  <option value="risk_finding">Risk Finding</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Description *</label>
+                <textarea
+                  required
+                  value={newCapa.description}
+                  onChange={(e) => setNewCapa({ ...newCapa, description: e.target.value })}
+                  rows={4}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                  placeholder="Describe the issue..."
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Owner</label>
+                  <select
+                    value={newCapa.owner_id}
+                    onChange={(e) => setNewCapa({ ...newCapa, owner_id: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                  >
+                    <option value="">Select owner...</option>
+                    {users.map((u: any) => (
+                      <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Assigned To</label>
+                  <select
+                    value={newCapa.assigned_to}
+                    onChange={(e) => setNewCapa({ ...newCapa, assigned_to: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                  >
+                    <option value="">Select assignee...</option>
+                    {users.map((u: any) => (
+                      <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Target Completion Date</label>
+                <input
+                  type="date"
+                  value={newCapa.target_completion_date}
+                  onChange={(e) => setNewCapa({ ...newCapa, target_completion_date: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                />
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium disabled:opacity-50"
+                >
+                  {submitting ? 'Creating...' : 'Create CAPA'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  className="px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </ModulePageLayout>
   )
 }

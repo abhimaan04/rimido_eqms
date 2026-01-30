@@ -14,6 +14,7 @@ interface ModulePageLayoutProps {
   children: React.ReactNode
   newButtonLabel?: string
   newButtonHref?: string
+  newButtonOnClick?: () => void
   accentColor?: 'blue' | 'red' | 'emerald' | 'violet' | 'amber' | 'orange' | 'pink' | 'indigo'
 }
 
@@ -37,6 +38,7 @@ export default function ModulePageLayout({
   children,
   newButtonLabel = 'New',
   newButtonHref = '#',
+  newButtonOnClick,
   accentColor = 'blue',
 }: ModulePageLayoutProps) {
   const gradient = accentMap[accentColor]
@@ -69,13 +71,23 @@ export default function ModulePageLayout({
       <main className="container mx-auto px-4 py-8 -mt-4 relative z-10">
         <div className="flex flex-wrap items-center justify-end gap-4 mb-6">
           {newButtonLabel && (
-            <Link
-              href={newButtonHref}
-              className={`inline-flex items-center gap-2 bg-gradient-to-r ${gradient} text-white px-5 py-2.5 rounded-xl font-semibold shadow-lg hover:opacity-95 transition`}
-            >
-              <Plus size={18} />
-              {newButtonLabel}
-            </Link>
+            newButtonOnClick ? (
+              <button
+                onClick={newButtonOnClick}
+                className={`inline-flex items-center gap-2 bg-gradient-to-r ${gradient} text-white px-5 py-2.5 rounded-xl font-semibold shadow-lg hover:opacity-95 transition`}
+              >
+                <Plus size={18} />
+                {newButtonLabel}
+              </button>
+            ) : (
+              <Link
+                href={newButtonHref}
+                className={`inline-flex items-center gap-2 bg-gradient-to-r ${gradient} text-white px-5 py-2.5 rounded-xl font-semibold shadow-lg hover:opacity-95 transition`}
+              >
+                <Plus size={18} />
+                {newButtonLabel}
+              </Link>
+            )
           )}
         </div>
         {children}

@@ -144,7 +144,7 @@ export default function DocumentControlPage() {
       imageUrl="https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=1200&q=80"
       imageAlt="Documents and quality"
       newButtonLabel="New Document"
-      newButtonHref="#new-document"
+      newButtonOnClick={() => setShowCreateModal(true)}
       accentColor="blue"
     >
       <div className="grid lg:grid-cols-3 gap-8">
