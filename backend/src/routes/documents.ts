@@ -357,6 +357,43 @@ router.post(
   }
 );
 
+// Obsolete document
+router.post(
+  '/:id/obsolete',
+  authenticate,
+  checkPermission('documents', 'update'),
+  async (req, res, next) => {
+    try {
+      const { superseded_by } = req.body;
+      const documentId = req.params.id;
+
+      // Update document status to obsolete
+      const result = await pool.query(
+        `UPDATE documents 
+         SET status = 'obsolete', 
+             superseded_by = $1,
+             updated_by = $2,
+             updated_at = NOW()
+         WHERE id = $3 AND status = 'approved'
+         RETURNING *`,
+        [superseded_by || null, req.user!.id, documentId]
+      );
+
+      if (result.rows.length === 0) {
+        throw new AppError('Document not found or cannot be obsoleted (must be approved)', 404);
+      }
+
+      res.json({
+        success: true,
+        message: 'Document obsoleted successfully',
+        data: result.rows[0],
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // Get document categories
 router.get(
   '/categories/list',
