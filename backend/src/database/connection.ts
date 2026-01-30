@@ -10,21 +10,37 @@ dotenv.config({
   path: path.resolve(__dirname, '../../../.env'),
 });
 
+// Prefer DATABASE_URL in production (Render/Neon/Supabase), fallback to DB_* for local dev.
+const connectionString = process.env.DATABASE_URL;
+
 // Normalize database password to always be a string (as required by pg + SCRAM)
 const rawPassword = process.env.DB_PASSWORD;
 const dbPassword =
   typeof rawPassword === 'string'
     ? rawPassword
     : rawPassword === undefined || rawPassword === null
-    ? undefined
-    : String(rawPassword);
+      ? undefined
+      : String(rawPassword);
 
 const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5432'),
-  database: process.env.DB_NAME || 'eqms',
-  user: process.env.DB_USER || 'postgres',
-  password: dbPassword,
+  ...(connectionString
+    ? {
+        connectionString,
+        // Many hosted Postgres providers require SSL; allow opt-out via DB_SSL=false
+        ssl:
+          process.env.DB_SSL === 'false'
+            ? undefined
+            : process.env.NODE_ENV === 'production'
+              ? { rejectUnauthorized: false }
+              : undefined,
+      }
+    : {
+        host: process.env.DB_HOST || 'localhost',
+        port: parseInt(process.env.DB_PORT || '5432'),
+        database: process.env.DB_NAME || 'eqms',
+        user: process.env.DB_USER || 'postgres',
+        password: dbPassword,
+      }),
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 2000,

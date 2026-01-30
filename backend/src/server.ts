@@ -26,9 +26,20 @@ const PORT = process.env.PORT || 3001;
 
 // Security middleware
 app.use(helmet());
+
+// CORS: allow Vercel (*.vercel.app), FRONTEND_URL, and localhost
+const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-  credentials: true
+  origin: (origin, cb) => {
+    if (!origin) return cb(null, true);
+    const allowed =
+      origin === frontendUrl ||
+      origin.endsWith('.vercel.app') ||
+      origin.startsWith('http://localhost:') ||
+      origin.startsWith('https://localhost:');
+    return cb(null, allowed ? origin : false);
+  },
+  credentials: true,
 }));
 
 // Rate limiting
