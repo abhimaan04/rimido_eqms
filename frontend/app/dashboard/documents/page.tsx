@@ -45,11 +45,15 @@ export default function DocumentControlPage() {
       imageUrl="https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=1200&q=80"
       imageAlt="Documents and quality"
       newButtonLabel="New Document"
+      newButtonHref="#new-document"
       accentColor="blue"
     >
       <div className="grid lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white rounded-2xl shadow-soft border border-slate-100 p-6">
+          <div
+            id="new-document"
+            className="bg-white rounded-2xl shadow-soft border border-slate-100 p-6"
+          >
             <h2 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
               <FileText className="w-5 h-5 text-sky-600" />
               Remidio document scope
@@ -78,7 +82,10 @@ export default function DocumentControlPage() {
             </ul>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-soft border border-slate-100 p-6">
+          <div
+            id="approval-queue"
+            className="bg-white rounded-2xl shadow-soft border border-slate-100 p-6"
+          >
             <h2 className="font-semibold text-slate-900 mb-4">Controlled documents</h2>
             {loading ? (
               <div className="flex items-center gap-2 text-slate-500">
@@ -114,14 +121,29 @@ export default function DocumentControlPage() {
           <div className="bg-white rounded-2xl shadow-soft border border-slate-100 p-6">
             <h3 className="font-semibold text-slate-900 mb-3">Quick actions</h3>
             <ul className="space-y-2 text-sm">
-              <li><Link href="#" className="text-sky-600 hover:text-sky-700 hover:underline">Create new document</Link></li>
-              <li><Link href="#" className="text-sky-600 hover:text-sky-700 hover:underline">Submit for approval</Link></li>
-              <li><Link href="#" className="text-sky-600 hover:text-sky-700 hover:underline">View approval queue</Link></li>
-              <li><Link href="#" className="text-sky-600 hover:text-sky-700 hover:underline">Obsolete / supersede</Link></li>
+              <li><Link href="#new-document" className="text-sky-600 hover:text-sky-700 hover:underline">Create new document</Link></li>
+              <li><Link href="#submit-approval" className="text-sky-600 hover:text-sky-700 hover:underline">Submit for approval</Link></li>
+              <li><Link href="#approval-queue" className="text-sky-600 hover:text-sky-700 hover:underline">View approval queue</Link></li>
+              <li><Link href="#obsolete" className="text-sky-600 hover:text-sky-700 hover:underline">Obsolete / supersede</Link></li>
             </ul>
           </div>
-          <div className="bg-sky-50 rounded-2xl p-4 text-sm text-slate-700 border border-sky-100">
-            <strong className="text-sky-800">Compliance:</strong> ISO 13485:2016 Clause 7.5 — Documented information. All changes are version-controlled and electronically signed (21 CFR Part 11).
+          <div className="space-y-4">
+            <div
+              id="submit-approval"
+              className="bg-sky-50 rounded-2xl p-4 text-sm text-slate-700 border border-sky-100"
+            >
+              <strong className="text-sky-800">Submit for approval:</strong>{' '}
+              Route draft SOPs, IFUs, and procedures for review and electronic
+              signatures in line with Remidio&apos;s quality workflow.
+            </div>
+            <div
+              id="obsolete"
+              className="bg-sky-50 rounded-2xl p-4 text-sm text-slate-700 border border-sky-100"
+            >
+              <strong className="text-sky-800">Obsolete / supersede:</strong>{' '}
+              Retire older document versions while keeping full traceability to FOP
+              cameras, risk files, training, and regulatory submissions.
+            </div>
           </div>
         </div>
       </div>

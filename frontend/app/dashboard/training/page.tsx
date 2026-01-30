@@ -66,7 +66,10 @@ export default function TrainingManagementPage() {
             </ul>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-soft border border-slate-100 p-6">
+          <div
+            id="assign-training"
+            className="bg-white rounded-2xl shadow-soft border border-slate-100 p-6"
+          >
             <h2 className="font-semibold text-slate-900 mb-4">Training programs</h2>
             {loading ? (
               <div className="flex items-center gap-2 text-slate-500"><div className="w-5 h-5 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" /> Loading...</div>
@@ -84,7 +87,10 @@ export default function TrainingManagementPage() {
             )}
           </div>
 
-          <div className="bg-white rounded-2xl shadow-soft border border-slate-100 p-6">
+          <div
+            id="record-completion"
+            className="bg-white rounded-2xl shadow-soft border border-slate-100 p-6"
+          >
             <h2 className="font-semibold text-slate-900 mb-4">Recent training records</h2>
             {records.length === 0 ? (
               <p className="text-slate-500 py-6 text-center">No training records yet.</p>
@@ -105,12 +111,15 @@ export default function TrainingManagementPage() {
           <div className="bg-white rounded-2xl shadow-soft border border-slate-100 p-6">
             <h3 className="font-semibold text-slate-900 mb-3">Quick actions</h3>
             <ul className="space-y-2 text-sm">
-              <li><Link href="#" className="text-violet-600 hover:underline">Assign training</Link></li>
-              <li><Link href="#" className="text-violet-600 hover:underline">Record completion</Link></li>
-              <li><Link href="#" className="text-violet-600 hover:underline">Due / overdue report</Link></li>
+              <li><Link href="#assign-training" className="text-violet-600 hover:underline">Assign training</Link></li>
+              <li><Link href="#record-completion" className="text-violet-600 hover:underline">Record completion</Link></li>
+              <li><Link href="#due-report" className="text-violet-600 hover:underline">Due / overdue report</Link></li>
             </ul>
           </div>
-          <div className="bg-violet-50 rounded-2xl p-4 text-sm text-slate-700 border border-violet-100">
+          <div
+            id="due-report"
+            className="bg-violet-50 rounded-2xl p-4 text-sm text-slate-700 border border-violet-100"
+          >
             <strong className="text-violet-800">Compliance:</strong> ISO 13485:2016 Clause 7.2 — Competence.
           </div>
         </div>

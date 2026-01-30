@@ -44,11 +44,15 @@ export default function RiskManagementPage() {
       imageUrl="https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=1200&q=80"
       imageAlt="Risk and safety"
       newButtonLabel="New Risk Assessment"
+      newButtonHref="#new-risk"
       accentColor="orange"
     >
       <div className="grid lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white rounded-2xl shadow-soft border border-slate-100 p-6">
+          <div
+            id="new-risk"
+            className="bg-white rounded-2xl shadow-soft border border-slate-100 p-6"
+          >
             <h2 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
               <Shield className="w-5 h-5 text-orange-600" />
               Remidio risk scope

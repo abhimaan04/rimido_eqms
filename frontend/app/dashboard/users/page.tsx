@@ -45,11 +45,15 @@ export default function UserManagementPage() {
       imageUrl="https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=1200&q=80"
       imageAlt="Team and users"
       newButtonLabel="Add User"
+      newButtonHref="#add-user"
       accentColor="indigo"
     >
       <div className="grid lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white rounded-2xl shadow-soft border border-slate-100 p-6">
+          <div
+            id="add-user"
+            className="bg-white rounded-2xl shadow-soft border border-slate-100 p-6"
+          >
             <h2 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
               <Users className="w-5 h-5 text-indigo-600" />
               Remidio roles
@@ -104,10 +108,10 @@ export default function UserManagementPage() {
           <div className="bg-white rounded-2xl shadow-soft border border-slate-100 p-6">
             <h3 className="font-semibold text-slate-900 mb-3">Quick actions</h3>
             <ul className="space-y-2 text-sm">
-              <li><Link href="#" className="text-indigo-600 hover:underline">Add user</Link></li>
-              <li><Link href="#" className="text-indigo-600 hover:underline">Assign role</Link></li>
-              <li><Link href="#" className="text-indigo-600 hover:underline">Reset password</Link></li>
-              <li><Link href="#" className="text-indigo-600 hover:underline">Lock / unlock account</Link></li>
+              <li><Link href="#add-user" className="text-indigo-600 hover:underline">Add user</Link></li>
+              <li><Link href="#add-user" className="text-indigo-600 hover:underline">Assign role</Link></li>
+              <li><Link href="#add-user" className="text-indigo-600 hover:underline">Reset password</Link></li>
+              <li><Link href="#add-user" className="text-indigo-600 hover:underline">Lock / unlock account</Link></li>
             </ul>
           </div>
           <div className="bg-indigo-50 rounded-2xl p-4 text-sm text-slate-700 border border-indigo-100">

@@ -45,11 +45,15 @@ export default function CAPAManagementPage() {
       imageUrl="https://images.unsplash.com/photo-1450101499163-c8848c66ca85?w=1200&q=80"
       imageAlt="Quality and improvement"
       newButtonLabel="New CAPA"
+      newButtonHref="#new-capa"
       accentColor="red"
     >
       <div className="grid lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white rounded-2xl shadow-soft border border-slate-100 p-6">
+          <div
+            id="new-capa"
+            className="bg-white rounded-2xl shadow-soft border border-slate-100 p-6"
+          >
             <h2 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
               <AlertCircle className="w-5 h-5 text-red-600" />
               Remidio CAPA sources

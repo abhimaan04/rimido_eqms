@@ -48,7 +48,10 @@ export default function ChangeControlPage() {
     >
       <div className="grid lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white rounded-2xl shadow-soft border border-slate-100 p-6">
+          <div
+            id="new-change"
+            className="bg-white rounded-2xl shadow-soft border border-slate-100 p-6"
+          >
             <h2 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
               <RefreshCw className="w-5 h-5 text-emerald-600" />
               Change types at Remidio
