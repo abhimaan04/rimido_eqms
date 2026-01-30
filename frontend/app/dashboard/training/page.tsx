@@ -64,6 +64,14 @@ export default function TrainingManagementPage() {
               <li className="flex items-start gap-2"><span className="text-violet-500 mt-0.5">•</span> Regulatory awareness (ISO 13485, MDR, FDA)</li>
               <li className="flex items-start gap-2"><span className="text-violet-500 mt-0.5">•</span> Risk management and CAPA awareness</li>
             </ul>
+
+            <h3 className="mt-5 font-semibold text-slate-900">Function</h3>
+            <ul className="mt-2 text-slate-700 space-y-1.5 text-sm">
+              <li>• Assign training to users</li>
+              <li>• Track training completion</li>
+              <li>• Record training effectiveness</li>
+              <li>• Maintain training history</li>
+            </ul>
           </div>
 
           <div

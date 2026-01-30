@@ -65,6 +65,14 @@ export default function CAPAManagementPage() {
               <li className="flex items-start gap-2"><span className="text-red-500 mt-0.5">•</span> Post-market surveillance and adverse events</li>
               <li className="flex items-start gap-2"><span className="text-red-500 mt-0.5">•</span> Software defects (IEC 62304) and risk findings</li>
             </ul>
+
+            <h3 className="mt-5 font-semibold text-slate-900">Function</h3>
+            <ul className="mt-2 text-slate-700 space-y-1.5 text-sm">
+              <li>• Create CAPA records</li>
+              <li>• Identify root causes of issues</li>
+              <li>• Define corrective and preventive actions</li>
+              <li>• Track CAPA status (Open / In Progress / Closed)</li>
+            </ul>
           </div>
 
           <div className="bg-white rounded-2xl shadow-soft border border-slate-100 p-6">

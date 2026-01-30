@@ -80,6 +80,14 @@ export default function DocumentControlPage() {
                 Regulatory and CE/FDA submission documents
               </li>
             </ul>
+
+            <h3 className="mt-5 font-semibold text-slate-900">Function</h3>
+            <ul className="mt-2 text-slate-700 space-y-1.5 text-sm">
+              <li>• Upload quality documents (SOPs, policies, manuals)</li>
+              <li>• View and manage document versions</li>
+              <li>• Track document approvals</li>
+              <li>• Maintain document lifecycle</li>
+            </ul>
           </div>
 
           <div

@@ -64,6 +64,14 @@ export default function RiskManagementPage() {
               <li className="flex items-start gap-2"><span className="text-orange-500 mt-0.5">•</span> Data & privacy: patient images, GDPR / HIPAA</li>
               <li className="flex items-start gap-2"><span className="text-orange-500 mt-0.5">•</span> Supply chain and manufacturing</li>
             </ul>
+
+            <h3 className="mt-5 font-semibold text-slate-900">Function</h3>
+            <ul className="mt-2 text-slate-700 space-y-1.5 text-sm">
+              <li>• Identify risks</li>
+              <li>• Analyze risk severity and probability</li>
+              <li>• Record mitigation actions</li>
+              <li>• Track residual risk</li>
+            </ul>
           </div>
 
           <div className="bg-white rounded-2xl shadow-soft border border-slate-100 p-6 overflow-x-auto">

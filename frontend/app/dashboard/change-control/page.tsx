@@ -62,6 +62,14 @@ export default function ChangeControlPage() {
               <li className="flex items-start gap-2"><span className="text-emerald-500 mt-0.5">•</span> <strong>Process</strong> — manufacturing, calibration, servicing</li>
               <li className="flex items-start gap-2"><span className="text-emerald-500 mt-0.5">•</span> <strong>Documentation</strong> — SOPs, labels, IFU</li>
             </ul>
+
+            <h3 className="mt-5 font-semibold text-slate-900">Function</h3>
+            <ul className="mt-2 text-slate-700 space-y-1.5 text-sm">
+              <li>• Submit change requests</li>
+              <li>• Evaluate impact of changes</li>
+              <li>• Approve or reject changes</li>
+              <li>• Maintain change history</li>
+            </ul>
           </div>
 
           <div className="bg-white rounded-2xl shadow-soft border border-slate-100 p-6">

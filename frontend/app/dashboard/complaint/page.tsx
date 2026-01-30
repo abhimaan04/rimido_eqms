@@ -63,6 +63,14 @@ export default function ComplaintHandlingPage() {
               <li className="flex items-start gap-2"><span className="text-pink-500 mt-0.5">•</span> <strong>Non-conformances</strong> — audit findings, inspections, process NCs</li>
               <li className="flex items-start gap-2"><span className="text-pink-500 mt-0.5">•</span> Link to CAPA and MDR vigilance where applicable</li>
             </ul>
+
+            <h3 className="mt-5 font-semibold text-slate-900">Function</h3>
+            <ul className="mt-2 text-slate-700 space-y-1.5 text-sm">
+              <li>• Log customer or product complaints</li>
+              <li>• Investigate complaint root cause</li>
+              <li>• Link complaints to CAPA</li>
+              <li>• Track complaint resolution</li>
+            </ul>
           </div>
 
           <div className="bg-white rounded-2xl shadow-soft border border-slate-100 p-6">
