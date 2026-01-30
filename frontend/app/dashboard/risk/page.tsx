@@ -4,13 +4,28 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import ModulePageLayout from '@/components/ModulePageLayout'
-import { Shield } from 'lucide-react'
+import { Shield, X } from 'lucide-react'
 
 export default function RiskManagementPage() {
   const router = useRouter()
   const [user, setUser] = useState<any>(null)
   const [risks, setRisks] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [users, setUsers] = useState<any[]>([])
+  const [newRisk, setNewRisk] = useState({
+    title: '',
+    product_component: '',
+    hazard: '',
+    hazard_situation: '',
+    harm: '',
+    severity: '3',
+    probability: '3',
+    current_controls: '',
+    mitigation_measures: '',
+    reviewer_id: '',
+  })
 
   useEffect(() => {
     const token = localStorage.getItem('token')
@@ -23,16 +38,53 @@ export default function RiskManagementPage() {
 
   const loadData = async () => {
     try {
-      const [userRes, riskRes] = await Promise.all([
+      const [userRes, riskRes, usersRes] = await Promise.all([
         api.get('/auth/me'),
         api.get('/risk').catch(() => ({ data: { data: [] } })),
+        api.get('/users').catch(() => ({ data: { data: [] } })),
       ])
       setUser(userRes.data.data)
       setRisks(riskRes.data.data || [])
+      setUsers(usersRes.data.data || [])
     } catch (e) {
       console.error(e)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleCreateRisk = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSubmitting(true)
+    try {
+      await api.post('/risk', {
+        ...newRisk,
+        severity: parseInt(newRisk.severity),
+        probability: parseInt(newRisk.probability),
+        reviewer_id: newRisk.reviewer_id || null,
+        current_controls: newRisk.current_controls || null,
+        mitigation_measures: newRisk.mitigation_measures || null,
+        product_component: newRisk.product_component || null,
+      })
+      alert('Risk assessment created successfully!')
+      setShowCreateModal(false)
+      setNewRisk({
+        title: '',
+        product_component: '',
+        hazard: '',
+        hazard_situation: '',
+        harm: '',
+        severity: '3',
+        probability: '3',
+        current_controls: '',
+        mitigation_measures: '',
+        reviewer_id: '',
+      })
+      loadData()
+    } catch (error: any) {
+      alert(error.response?.data?.message || 'Failed to create risk assessment')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -44,7 +96,7 @@ export default function RiskManagementPage() {
       imageUrl="https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=1200&q=80"
       imageAlt="Risk and safety"
       newButtonLabel="New Risk Assessment"
-      newButtonHref="#new-risk"
+      newButtonOnClick={() => setShowCreateModal(true)}
       accentColor="orange"
     >
       <div className="grid lg:grid-cols-3 gap-8">
@@ -130,6 +182,160 @@ export default function RiskManagementPage() {
           </div>
         </div>
       </div>
+
+      {/* Create Risk Assessment Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+              <h3 className="text-xl font-semibold text-slate-900">Create New Risk Assessment</h3>
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            <form onSubmit={handleCreateRisk} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Title *</label>
+                <input
+                  type="text"
+                  required
+                  value={newRisk.title}
+                  onChange={(e) => setNewRisk({ ...newRisk, title: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                  placeholder="Risk assessment title"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Product/Component</label>
+                <input
+                  type="text"
+                  value={newRisk.product_component}
+                  onChange={(e) => setNewRisk({ ...newRisk, product_component: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                  placeholder="e.g., FOP Camera, Mobile App"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Hazard *</label>
+                <input
+                  type="text"
+                  required
+                  value={newRisk.hazard}
+                  onChange={(e) => setNewRisk({ ...newRisk, hazard: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                  placeholder="Potential hazard"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Hazard Situation *</label>
+                <textarea
+                  required
+                  value={newRisk.hazard_situation}
+                  onChange={(e) => setNewRisk({ ...newRisk, hazard_situation: e.target.value })}
+                  rows={2}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                  placeholder="Describe the situation where hazard occurs"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Harm *</label>
+                <input
+                  type="text"
+                  required
+                  value={newRisk.harm}
+                  onChange={(e) => setNewRisk({ ...newRisk, harm: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                  placeholder="Potential harm to patient/user"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Severity (1-5) *</label>
+                  <select
+                    required
+                    value={newRisk.severity}
+                    onChange={(e) => setNewRisk({ ...newRisk, severity: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                  >
+                    <option value="1">1 - Negligible</option>
+                    <option value="2">2 - Minor</option>
+                    <option value="3">3 - Moderate</option>
+                    <option value="4">4 - Major</option>
+                    <option value="5">5 - Catastrophic</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Probability (1-5) *</label>
+                  <select
+                    required
+                    value={newRisk.probability}
+                    onChange={(e) => setNewRisk({ ...newRisk, probability: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                  >
+                    <option value="1">1 - Rare</option>
+                    <option value="2">2 - Unlikely</option>
+                    <option value="3">3 - Possible</option>
+                    <option value="4">4 - Probable</option>
+                    <option value="5">5 - Frequent</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Current Controls</label>
+                <textarea
+                  value={newRisk.current_controls}
+                  onChange={(e) => setNewRisk({ ...newRisk, current_controls: e.target.value })}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                  placeholder="Existing risk controls"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Mitigation Measures</label>
+                <textarea
+                  value={newRisk.mitigation_measures}
+                  onChange={(e) => setNewRisk({ ...newRisk, mitigation_measures: e.target.value })}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                  placeholder="Proposed mitigation actions"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Reviewer</label>
+                <select
+                  value={newRisk.reviewer_id}
+                  onChange={(e) => setNewRisk({ ...newRisk, reviewer_id: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                >
+                  <option value="">Select reviewer...</option>
+                  {users.map((u: any) => (
+                    <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="flex-1 bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg font-medium disabled:opacity-50"
+                >
+                  {submitting ? 'Creating...' : 'Create Risk Assessment'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  className="px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </ModulePageLayout>
   )
 }

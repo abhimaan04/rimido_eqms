@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import api from '@/lib/api'
 import ModulePageLayout from '@/components/ModulePageLayout'
-import { GraduationCap } from 'lucide-react'
+import { GraduationCap, X } from 'lucide-react'
 
 export default function TrainingManagementPage() {
   const router = useRouter()
@@ -13,6 +13,17 @@ export default function TrainingManagementPage() {
   const [programs, setPrograms] = useState<any[]>([])
   const [records, setRecords] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [users, setUsers] = useState<any[]>([])
+  const [newRecord, setNewRecord] = useState({
+    user_id: '',
+    program_id: '',
+    training_date: '',
+    trainer_id: '',
+    completion_date: '',
+    status: 'scheduled',
+  })
 
   useEffect(() => {
     const token = localStorage.getItem('token')
@@ -25,18 +36,47 @@ export default function TrainingManagementPage() {
 
   const loadData = async () => {
     try {
-      const [userRes, progRes, recRes] = await Promise.all([
+      const [userRes, progRes, recRes, usersRes] = await Promise.all([
         api.get('/auth/me'),
         api.get('/training/programs').catch(() => ({ data: { data: [] } })),
         api.get('/training/records').catch(() => ({ data: { data: [] } })),
+        api.get('/users').catch(() => ({ data: { data: [] } })),
       ])
       setUser(userRes.data.data)
       setPrograms(progRes.data.data || [])
       setRecords(recRes.data.data || [])
+      setUsers(usersRes.data.data || [])
     } catch (e) {
       console.error(e)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleCreateRecord = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSubmitting(true)
+    try {
+      await api.post('/training/records', {
+        ...newRecord,
+        trainer_id: newRecord.trainer_id || null,
+        completion_date: newRecord.completion_date || null,
+      })
+      alert('Training record created successfully!')
+      setShowCreateModal(false)
+      setNewRecord({
+        user_id: '',
+        program_id: '',
+        training_date: '',
+        trainer_id: '',
+        completion_date: '',
+        status: 'scheduled',
+      })
+      loadData()
+    } catch (error: any) {
+      alert(error.response?.data?.message || 'Failed to create training record')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -48,6 +88,7 @@ export default function TrainingManagementPage() {
       imageUrl="https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=1200&q=80"
       imageAlt="Training and learning"
       newButtonLabel="New Training Record"
+      newButtonOnClick={() => setShowCreateModal(true)}
       accentColor="violet"
     >
       <div className="grid lg:grid-cols-3 gap-8">
@@ -132,6 +173,119 @@ export default function TrainingManagementPage() {
           </div>
         </div>
       </div>
+
+      {/* Create Training Record Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+              <h3 className="text-xl font-semibold text-slate-900">Create New Training Record</h3>
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            <form onSubmit={handleCreateRecord} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">User *</label>
+                <select
+                  required
+                  value={newRecord.user_id}
+                  onChange={(e) => setNewRecord({ ...newRecord, user_id: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+                >
+                  <option value="">Select user...</option>
+                  {users.map((u: any) => (
+                    <option key={u.id} value={u.id}>{u.first_name} {u.last_name} ({u.email})</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Training Program *</label>
+                <select
+                  required
+                  value={newRecord.program_id}
+                  onChange={(e) => setNewRecord({ ...newRecord, program_id: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+                >
+                  <option value="">Select program...</option>
+                  {programs.map((p: any) => (
+                    <option key={p.id} value={p.id}>{p.title} ({p.program_code})</option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Training Date *</label>
+                  <input
+                    type="date"
+                    required
+                    value={newRecord.training_date}
+                    onChange={(e) => setNewRecord({ ...newRecord, training_date: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Status *</label>
+                  <select
+                    required
+                    value={newRecord.status}
+                    onChange={(e) => setNewRecord({ ...newRecord, status: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+                  >
+                    <option value="scheduled">Scheduled</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="completed">Completed</option>
+                    <option value="overdue">Overdue</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Trainer</label>
+                  <select
+                    value={newRecord.trainer_id}
+                    onChange={(e) => setNewRecord({ ...newRecord, trainer_id: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+                  >
+                    <option value="">Select trainer...</option>
+                    {users.map((u: any) => (
+                      <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Completion Date</label>
+                  <input
+                    type="date"
+                    value={newRecord.completion_date}
+                    onChange={(e) => setNewRecord({ ...newRecord, completion_date: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="flex-1 bg-violet-600 hover:bg-violet-700 text-white px-4 py-2 rounded-lg font-medium disabled:opacity-50"
+                >
+                  {submitting ? 'Creating...' : 'Create Training Record'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  className="px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </ModulePageLayout>
   )
 }
