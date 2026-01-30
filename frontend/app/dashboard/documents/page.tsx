@@ -12,6 +12,9 @@ export default function DocumentControlPage() {
   const [user, setUser] = useState<any>(null)
   const [documents, setDocuments] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [selectedAction, setSelectedAction] = useState<
+    'create' | 'submit' | 'queue' | 'obsolete' | null
+  >(null)
 
   useEffect(() => {
     const token = localStorage.getItem('token')
@@ -37,6 +40,14 @@ export default function DocumentControlPage() {
     }
   }
 
+  const handleActionClick = (action: 'create' | 'submit' | 'queue' | 'obsolete', targetId: string) => {
+    setSelectedAction(action)
+    if (typeof document !== 'undefined') {
+      const el = document.getElementById(targetId)
+      el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }
+
   return (
     <ModulePageLayout
       user={user}
@@ -52,7 +63,11 @@ export default function DocumentControlPage() {
         <div className="lg:col-span-2 space-y-6">
           <div
             id="new-document"
-            className="bg-white rounded-2xl shadow-soft border border-slate-100 p-6"
+            className={`bg-white rounded-2xl shadow-soft border p-6 transition ${
+              selectedAction === 'create'
+                ? 'border-sky-400 ring-2 ring-sky-100'
+                : 'border-slate-100'
+            }`}
           >
             <h2 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
               <FileText className="w-5 h-5 text-sky-600" />
@@ -92,7 +107,11 @@ export default function DocumentControlPage() {
 
           <div
             id="approval-queue"
-            className="bg-white rounded-2xl shadow-soft border border-slate-100 p-6"
+            className={`bg-white rounded-2xl shadow-soft border p-6 transition ${
+              selectedAction === 'queue'
+                ? 'border-sky-400 ring-2 ring-sky-100'
+                : 'border-slate-100'
+            }`}
           >
             <h2 className="font-semibold text-slate-900 mb-4">Controlled documents</h2>
             {loading ? (
@@ -129,10 +148,42 @@ export default function DocumentControlPage() {
           <div className="bg-white rounded-2xl shadow-soft border border-slate-100 p-6">
             <h3 className="font-semibold text-slate-900 mb-3">Quick actions</h3>
             <ul className="space-y-2 text-sm">
-              <li><Link href="#new-document" className="text-sky-600 hover:text-sky-700 hover:underline">Create new document</Link></li>
-              <li><Link href="#submit-approval" className="text-sky-600 hover:text-sky-700 hover:underline">Submit for approval</Link></li>
-              <li><Link href="#approval-queue" className="text-sky-600 hover:text-sky-700 hover:underline">View approval queue</Link></li>
-              <li><Link href="#obsolete" className="text-sky-600 hover:text-sky-700 hover:underline">Obsolete / supersede</Link></li>
+              <li>
+                <button
+                  type="button"
+                  onClick={() => handleActionClick('create', 'new-document')}
+                  className="text-sky-600 hover:text-sky-700 hover:underline"
+                >
+                  Create new document
+                </button>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  onClick={() => handleActionClick('submit', 'submit-approval')}
+                  className="text-sky-600 hover:text-sky-700 hover:underline"
+                >
+                  Submit for approval
+                </button>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  onClick={() => handleActionClick('queue', 'approval-queue')}
+                  className="text-sky-600 hover:text-sky-700 hover:underline"
+                >
+                  View approval queue
+                </button>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  onClick={() => handleActionClick('obsolete', 'obsolete')}
+                  className="text-sky-600 hover:text-sky-700 hover:underline"
+                >
+                  Obsolete / supersede
+                </button>
+              </li>
             </ul>
           </div>
           <div className="space-y-4">
