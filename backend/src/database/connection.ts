@@ -13,6 +13,16 @@ dotenv.config({
 // Prefer DATABASE_URL in production (Render/Neon/Supabase), fallback to DB_* for local dev.
 const connectionString = process.env.DATABASE_URL;
 
+// Log connection info (without exposing password)
+if (process.env.NODE_ENV === 'production') {
+  if (connectionString) {
+    const url = new URL(connectionString);
+    console.log(`📊 Connecting to database: ${url.hostname}:${url.port || 5432}/${url.pathname.slice(1)}`);
+  } else {
+    console.warn('⚠️  DATABASE_URL not set! Falling back to DB_HOST/DB_USER/etc. (may fail in production)');
+  }
+}
+
 // Normalize database password to always be a string (as required by pg + SCRAM)
 const rawPassword = process.env.DB_PASSWORD;
 const dbPassword =
