@@ -411,6 +411,46 @@ export default function CAPAManagementPage() {
     }
   }
 
+  const handleDeleteCapa = async (capaId: string, capaNumber: string) => {
+    const confirmed = window.confirm(
+      `Delete CAPA ${capaNumber}?\n\nThis will hide it from the CAPA list and remove server files.`
+    )
+    if (!confirmed) {
+      return
+    }
+
+    try {
+      let response
+      try {
+        response = await api.delete(`/capa/${capaId}`)
+      } catch (error: any) {
+        // Fallback for environments where DELETE may be blocked/routed differently.
+        if (axios.isAxiosError(error) && error.response?.status === 404) {
+          response = await api.post(`/capa/${capaId}/delete`)
+        } else {
+          throw error
+        }
+      }
+
+      const deleted = response.data?.data?.deleted_files ?? 0
+      const missing = response.data?.data?.missing_files ?? 0
+      const blocked = response.data?.data?.blocked_files ?? 0
+      setCapaList((prev) => prev.filter((item: any) => item.id !== capaId))
+      alert(`CAPA deleted. Removed ${deleted} file(s). Missing ${missing}. Blocked ${blocked}.`)
+    } catch (error: any) {
+      let message = 'Failed to delete CAPA'
+      if (axios.isAxiosError(error) && error.response?.data) {
+        const payload = error.response.data as any
+        if (typeof payload === 'string') {
+          message = payload
+        } else {
+          message = payload?.error?.message || payload?.message || message
+        }
+      }
+      alert(message)
+    }
+  }
+
   return (
     <ModulePageLayout
       user={user}
@@ -493,7 +533,14 @@ export default function CAPAManagementPage() {
                         onClick={() => handleRemoveFiles(c.id, c.capa_number)}
                         className="text-xs px-2.5 py-1 rounded-lg border border-red-300 text-red-700 hover:bg-red-50"
                       >
-                        Remove Files
+                        Remove Server Files
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteCapa(c.id, c.capa_number)}
+                        className="text-xs px-2.5 py-1 rounded-lg border border-red-500 bg-red-600 text-white hover:bg-red-700"
+                      >
+                        Delete CAPA
                       </button>
                     </div>
                   </li>

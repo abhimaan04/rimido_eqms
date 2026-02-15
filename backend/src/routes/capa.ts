@@ -159,6 +159,68 @@ function countFilesInDirectory(dirPath: string): number {
   return count;
 }
 
+function collectCapaFilePaths(row: any): { filePaths: Set<string>; detailItems: CapaDetailItem[] } {
+  const filePaths = new Set<string>();
+  const capaBaseName = sanitizeFilename(String(row.capa_number || 'CAPA'));
+  const defaultPdfPath = path.resolve(__dirname, '../../..', 'uploads', 'capa', `${capaBaseName}.pdf`);
+  const defaultDocxPath = path.resolve(__dirname, '../../..', 'uploads', 'capa', `${capaBaseName}.docx`);
+
+  if (typeof row.capa_pdf_path === 'string' && row.capa_pdf_path.length > 0) {
+    filePaths.add(row.capa_pdf_path);
+  }
+  if (typeof row.capa_docx_path === 'string' && row.capa_docx_path.length > 0) {
+    filePaths.add(row.capa_docx_path);
+  }
+  // Backward compatibility: files may exist at deterministic export paths even when DB columns are null.
+  filePaths.add(defaultPdfPath);
+  filePaths.add(defaultDocxPath);
+
+  if (Array.isArray(row.capa_images)) {
+    row.capa_images.forEach((p: any) => {
+      if (typeof p === 'string' && p.length > 0) {
+        filePaths.add(p);
+      }
+    });
+  }
+
+  const detailItems = normalizeDetailItems(row.detail_items || []);
+  detailItems.forEach((item) => {
+    (item.image_paths || []).forEach((p) => {
+      if (typeof p === 'string' && p.length > 0) {
+        filePaths.add(p);
+      }
+    });
+  });
+
+  return { filePaths, detailItems };
+}
+
+function removeCollectedFiles(rowId: string, filePaths: Set<string>): { deletedCount: number; missingCount: number; blockedCount: number } {
+  let deletedCount = 0;
+  let missingCount = 0;
+  let blockedCount = 0;
+  filePaths.forEach((filePath) => {
+    const status = removeFileIfAllowed(filePath);
+    if (status === 'deleted') deletedCount += 1;
+    if (status === 'missing') missingCount += 1;
+    if (status === 'blocked') blockedCount += 1;
+  });
+
+  // Also remove empty per-CAPA image directory when possible.
+  const imageDir = path.resolve(__dirname, '../../..', 'uploads', 'capa', 'images', rowId);
+  if (isInsideUploads(imageDir) && fs.existsSync(imageDir)) {
+    try {
+      const remainingFilesBeforeCleanup = countFilesInDirectory(imageDir);
+      fs.rmSync(imageDir, { recursive: true, force: true });
+      deletedCount += remainingFilesBeforeCleanup;
+    } catch {
+      // Non-fatal: file deletion result remains valid even if directory cleanup fails.
+    }
+  }
+
+  return { deletedCount, missingCount, blockedCount };
+}
+
 // Get all CAPA records
 router.get(
   '/',
@@ -175,6 +237,7 @@ router.get(
         LEFT JOIN users u1 ON c.created_by = u1.id
         LEFT JOIN users u2 ON c.owner_id = u2.id
         WHERE 1=1
+          AND c.status != 'deleted'
       `;
       const params: any[] = [];
       let paramCount = 1;
@@ -638,59 +701,8 @@ const removeCapaFilesHandler = async (req: any, res: any, next: any) => {
     }
 
     const row = result.rows[0];
-    const filePaths = new Set<string>();
-    const capaBaseName = sanitizeFilename(String(row.capa_number || 'CAPA'));
-    const defaultPdfPath = path.resolve(__dirname, '../../..', 'uploads', 'capa', `${capaBaseName}.pdf`);
-    const defaultDocxPath = path.resolve(__dirname, '../../..', 'uploads', 'capa', `${capaBaseName}.docx`);
-
-    if (typeof row.capa_pdf_path === 'string' && row.capa_pdf_path.length > 0) {
-      filePaths.add(row.capa_pdf_path);
-    }
-    if (typeof row.capa_docx_path === 'string' && row.capa_docx_path.length > 0) {
-      filePaths.add(row.capa_docx_path);
-    }
-    // Backward compatibility: files may exist at deterministic export paths even when DB columns are null.
-    filePaths.add(defaultPdfPath);
-    filePaths.add(defaultDocxPath);
-
-    if (Array.isArray(row.capa_images)) {
-      row.capa_images.forEach((p: any) => {
-        if (typeof p === 'string' && p.length > 0) {
-          filePaths.add(p);
-        }
-      });
-    }
-
-    const detailItems = normalizeDetailItems(row.detail_items || []);
-    detailItems.forEach((item) => {
-      (item.image_paths || []).forEach((p) => {
-        if (typeof p === 'string' && p.length > 0) {
-          filePaths.add(p);
-        }
-      });
-    });
-
-    let deletedCount = 0;
-    let missingCount = 0;
-    let blockedCount = 0;
-    filePaths.forEach((filePath) => {
-      const status = removeFileIfAllowed(filePath);
-      if (status === 'deleted') deletedCount += 1;
-      if (status === 'missing') missingCount += 1;
-      if (status === 'blocked') blockedCount += 1;
-    });
-
-    // Also remove empty per-CAPA image directory when possible.
-    const imageDir = path.resolve(__dirname, '../../..', 'uploads', 'capa', 'images', row.id);
-    if (isInsideUploads(imageDir) && fs.existsSync(imageDir)) {
-      try {
-        const remainingFilesBeforeCleanup = countFilesInDirectory(imageDir);
-        fs.rmSync(imageDir, { recursive: true, force: true });
-        deletedCount += remainingFilesBeforeCleanup;
-      } catch {
-        // Non-fatal: file deletion result remains valid even if directory cleanup fails.
-      }
-    }
+    const { filePaths, detailItems } = collectCapaFilePaths(row);
+    const { deletedCount, missingCount, blockedCount } = removeCollectedFiles(row.id, filePaths);
 
     let responseData = row;
     try {
@@ -747,6 +759,88 @@ router.post(
   authenticate,
   checkPermission('capa', 'update'),
   removeCapaFilesHandler
+);
+
+const deleteCapaHandler = async (req: any, res: any, next: any) => {
+  try {
+    const result = await pool.query(
+      `SELECT * FROM capa WHERE id = $1`,
+      [req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      throw new AppError('CAPA not found', 404);
+    }
+
+    const row = result.rows[0];
+    const { filePaths, detailItems } = collectCapaFilePaths(row);
+    const { deletedCount, missingCount, blockedCount } = removeCollectedFiles(row.id, filePaths);
+
+    let deletedCapa;
+    try {
+      const clearedDetailItems =
+        detailItems.length > 0
+          ? detailItems.map((item) => ({ ...item, image_paths: [] as string[] }))
+          : null;
+
+      const updated = await pool.query(
+        `UPDATE capa
+         SET status = 'deleted',
+             capa_pdf_path = NULL,
+             capa_docx_path = NULL,
+             capa_images = NULL,
+             detail_items = COALESCE($1, detail_items),
+             updated_by = $2
+         WHERE id = $3
+         RETURNING *`,
+        [clearedDetailItems, req.user!.id, row.id]
+      );
+      deletedCapa = updated.rows[0];
+    } catch (dbError: any) {
+      // Backward compatibility when new columns are not present yet.
+      if (dbError?.code !== '42703') {
+        throw dbError;
+      }
+      const fallback = await pool.query(
+        `UPDATE capa
+         SET status = 'deleted',
+             updated_by = $1
+         WHERE id = $2
+         RETURNING *`,
+        [req.user!.id, row.id]
+      );
+      deletedCapa = fallback.rows[0];
+    }
+
+    res.json({
+      success: true,
+      message: 'CAPA deleted',
+      data: {
+        capa: deletedCapa,
+        deleted_files: deletedCount,
+        missing_files: missingCount,
+        blocked_files: blockedCount,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Delete CAPA (soft delete + remove files)
+router.delete(
+  '/:id',
+  authenticate,
+  checkPermission('capa', 'update'),
+  deleteCapaHandler
+);
+
+// Compatibility route for environments blocking DELETE requests
+router.post(
+  '/:id/delete',
+  authenticate,
+  checkPermission('capa', 'update'),
+  deleteCapaHandler
 );
 
 // Download CAPA files
