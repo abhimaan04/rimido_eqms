@@ -39,6 +39,16 @@ function parseJsonArray(input: any): any[] | null {
   }
 }
 
+function parseJsonValue(input: any): any {
+  if (input === undefined || input === null) return null;
+  if (typeof input !== 'string') return input;
+  try {
+    return JSON.parse(input);
+  } catch {
+    return null;
+  }
+}
+
 function sanitizeFilename(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]/g, '_');
 }
@@ -47,6 +57,12 @@ type CapaDetailItem = {
   title: string;
   description: string;
   image_paths?: string[];
+};
+
+type CapaCustomTable = {
+  rows: number;
+  columns: number;
+  data: string[][];
 };
 
 type ParsedApprover = {
@@ -99,6 +115,35 @@ function normalizeDetailItems(input: any[]): CapaDetailItem[] {
         : [],
     }))
     .filter((item: CapaDetailItem) => item.title.length > 0 && item.description.length > 0);
+}
+
+function normalizeCustomTable(input: any): CapaCustomTable | null {
+  if (!input || typeof input !== 'object') {
+    return null;
+  }
+
+  const rowsRaw = Number((input as any).rows);
+  const columnsRaw = Number((input as any).columns);
+  if (!Number.isFinite(rowsRaw) || !Number.isFinite(columnsRaw)) {
+    return null;
+  }
+
+  const rows = Math.min(20, Math.max(1, Math.floor(rowsRaw)));
+  const columns = Math.min(12, Math.max(1, Math.floor(columnsRaw)));
+  const sourceData = Array.isArray((input as any).data) ? (input as any).data : [];
+
+  const data: string[][] = [];
+  for (let r = 0; r < rows; r += 1) {
+    const sourceRow = Array.isArray(sourceData[r]) ? sourceData[r] : [];
+    const row: string[] = [];
+    for (let c = 0; c < columns; c += 1) {
+      const value = sourceRow[c];
+      row.push(typeof value === 'string' ? value : '');
+    }
+    data.push(row);
+  }
+
+  return { rows, columns, data };
 }
 
 async function saveCapaImages(capaId: string, files: Express.Multer.File[]): Promise<string[]> {
@@ -360,6 +405,7 @@ router.post(
       const approversRaw = parseJsonArray(req.body.approvers);
       const customFieldsRaw = parseJsonArray(req.body.custom_fields);
       const detailItemsRaw = parseJsonArray(req.body.detail_items);
+      const customTableRaw = parseJsonValue(req.body.custom_table);
 
       const parsedApprovers = normalizeApprovers(approversRaw || []);
       const approversNeedingPassword = parsedApprovers.filter((approver) => approver.decision !== null);
@@ -396,6 +442,7 @@ router.post(
           value: typeof item.value === 'string' ? item.value : '',
         }))
         .filter((item) => item.label.length > 0);
+      const custom_table = normalizeCustomTable(customTableRaw);
 
       let detail_items = normalizeDetailItems(detailItemsRaw || []);
       if (detail_items.length === 0) {
@@ -431,6 +478,7 @@ router.post(
         target_completion_date || null,
         approvers.length > 0 ? approvers : null,
         custom_fields.length > 0 ? custom_fields : null,
+        custom_table,
         req.user!.id,
       ];
 
@@ -439,8 +487,8 @@ router.post(
         result = await pool.query(
           `INSERT INTO capa 
            (capa_number, title, type, source, source_reference_id, priority, description,
-            owner_id, assigned_to, target_completion_date, approvers, custom_fields, status, created_by)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'initiated', $13)
+            owner_id, assigned_to, target_completion_date, approvers, custom_fields, custom_table, status, created_by)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'initiated', $14)
            RETURNING *`,
           modernInsertValues
         );
@@ -514,6 +562,7 @@ router.post(
         target_completion_date: created.target_completion_date,
         approvers,
         custom_fields,
+        custom_table: custom_table || created.custom_table || null,
         image_paths: imagePaths,
         detail_items: detailItemsWithImages,
       });
@@ -564,6 +613,28 @@ router.post(
           responseData = {
             ...responseData,
             detail_items: detailItemsWithImages,
+          };
+        }
+      }
+
+      if (custom_table) {
+        try {
+          const tableUpdate = await pool.query(
+            `UPDATE capa
+             SET custom_table = $1
+             WHERE id = $2
+             RETURNING *`,
+            [custom_table, created.id]
+          );
+          responseData = tableUpdate.rows[0];
+        } catch (dbError: any) {
+          // Backward compatibility for databases that do not have custom_table yet.
+          if (dbError?.code !== '42703') {
+            throw dbError;
+          }
+          responseData = {
+            ...responseData,
+            custom_table,
           };
         }
       }
@@ -888,6 +959,7 @@ router.get(
             decision: approver.decision,
           })),
           custom_fields: row.custom_fields || [],
+          custom_table: normalizeCustomTable(row.custom_table || null),
           image_paths: row.capa_images || [],
           detail_items: normalizeDetailItems(row.detail_items || []),
         });

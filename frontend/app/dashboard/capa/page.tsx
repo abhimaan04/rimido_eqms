@@ -18,6 +18,11 @@ type CapaDetailEntry = {
   description: string
   images: File[]
 }
+type CapaCustomTable = {
+  rows: number
+  columns: number
+  data: string[][]
+}
 
 const emptyApprover = (): ApproverEntry => ({
   name: '',
@@ -28,6 +33,14 @@ const emptyDetailItem = (): CapaDetailEntry => ({
   title: '',
   description: '',
   images: [],
+})
+const createTableData = (rows: number, columns: number): string[][] =>
+  Array.from({ length: rows }, () => Array.from({ length: columns }, () => ''))
+
+const emptyCustomTable = (): CapaCustomTable => ({
+  rows: 3,
+  columns: 3,
+  data: createTableData(3, 3),
 })
 
 export default function CAPAManagementPage() {
@@ -43,6 +56,7 @@ export default function CAPAManagementPage() {
     priority: 'medium',
     approvers: [emptyApprover()] as ApproverEntry[],
     details: [emptyDetailItem()] as CapaDetailEntry[],
+    customTable: emptyCustomTable() as CapaCustomTable,
   })
 
   useEffect(() => {
@@ -122,6 +136,7 @@ export default function CAPAManagementPage() {
       formData.append('description', details[0].description)
       formData.append('approvers', JSON.stringify(approvers))
       formData.append('custom_fields', JSON.stringify([]))
+      formData.append('custom_table', JSON.stringify(newCapa.customTable))
       formData.append(
         'detail_items',
         JSON.stringify(
@@ -150,6 +165,7 @@ export default function CAPAManagementPage() {
         priority: 'medium',
         approvers: [emptyApprover()],
         details: [emptyDetailItem()],
+        customTable: emptyCustomTable(),
       })
       loadData()
     } catch (error: any) {
@@ -306,6 +322,44 @@ export default function CAPAManagementPage() {
       return {
         ...prev,
         details: next.length > 0 ? next : [emptyDetailItem()],
+      }
+    })
+  }
+
+  const updateCustomTableSize = (rows: number, columns: number) => {
+    const nextRows = Math.max(1, Math.min(20, rows))
+    const nextColumns = Math.max(1, Math.min(12, columns))
+    setNewCapa((prev) => {
+      const nextData = createTableData(nextRows, nextColumns)
+      for (let r = 0; r < nextRows; r += 1) {
+        for (let c = 0; c < nextColumns; c += 1) {
+          nextData[r][c] = prev.customTable.data[r]?.[c] || ''
+        }
+      }
+      return {
+        ...prev,
+        customTable: {
+          rows: nextRows,
+          columns: nextColumns,
+          data: nextData,
+        },
+      }
+    })
+  }
+
+  const handleCustomTableCellChange = (rowIndex: number, columnIndex: number, value: string) => {
+    setNewCapa((prev) => {
+      const nextData = prev.customTable.data.map((row) => [...row])
+      if (!nextData[rowIndex]) {
+        return prev
+      }
+      nextData[rowIndex][columnIndex] = value
+      return {
+        ...prev,
+        customTable: {
+          ...prev.customTable,
+          data: nextData,
+        },
       }
     })
   }
@@ -669,6 +723,57 @@ export default function CAPAManagementPage() {
                   Add Detail Item
                 </button>
               </div>
+
+              <div className="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-4">
+                <h4 className="font-semibold text-slate-900">Custom Table</h4>
+                <p className="text-sm text-slate-600">Set table size and fill values. This table will be included in PDF/Word exports.</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Rows</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={20}
+                      value={newCapa.customTable.rows}
+                      onChange={(e) => updateCustomTableSize(Number(e.target.value || 1), newCapa.customTable.columns)}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Columns</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={12}
+                      value={newCapa.customTable.columns}
+                      onChange={(e) => updateCustomTableSize(newCapa.customTable.rows, Number(e.target.value || 1))}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                    />
+                  </div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full border border-slate-300 rounded-lg overflow-hidden">
+                    <tbody>
+                      {newCapa.customTable.data.map((row, rowIndex) => (
+                        <tr key={`custom-row-${rowIndex}`} className={rowIndex === 0 ? 'bg-slate-100' : 'bg-white'}>
+                          {row.map((cell, columnIndex) => (
+                            <td key={`custom-cell-${rowIndex}-${columnIndex}`} className="border border-slate-200 p-1.5">
+                              <input
+                                type="text"
+                                value={cell}
+                                onChange={(e) => handleCustomTableCellChange(rowIndex, columnIndex, e.target.value)}
+                                className="w-full px-2 py-1 text-sm border border-slate-200 rounded focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                                placeholder={`R${rowIndex + 1}C${columnIndex + 1}`}
+                              />
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
               <div className="flex gap-3 pt-4">
                 <button
                   type="submit"
