@@ -368,6 +368,27 @@ export default function CAPAManagementPage() {
     }
   }
 
+  const handleRemoveFiles = async (capaId: string, capaNumber: string) => {
+    const confirmed = window.confirm(`Remove generated files for ${capaNumber}?`)
+    if (!confirmed) {
+      return
+    }
+
+    try {
+      const response = await api.delete(`/capa/${capaId}/files`)
+      const deleted = response.data?.data?.deleted_files ?? 0
+      alert(`Files removed. Deleted ${deleted} file(s).`)
+      loadData()
+    } catch (error: any) {
+      let message = 'Failed to remove CAPA files'
+      if (axios.isAxiosError(error) && error.response?.data) {
+        const payload = error.response.data as any
+        message = payload?.error?.message || payload?.message || message
+      }
+      alert(message)
+    }
+  }
+
   return (
     <ModulePageLayout
       user={user}
@@ -444,6 +465,13 @@ export default function CAPAManagementPage() {
                         className="text-xs px-2.5 py-1 rounded-lg border border-slate-300 hover:bg-slate-50"
                       >
                         Download Word
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveFiles(c.id, c.capa_number)}
+                        className="text-xs px-2.5 py-1 rounded-lg border border-red-300 text-red-700 hover:bg-red-50"
+                      >
+                        Remove Files
                       </button>
                     </div>
                   </li>
