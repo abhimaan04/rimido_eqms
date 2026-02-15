@@ -61,8 +61,8 @@ async function generatePdf(filePath: string, data: CapaExportData) {
     ];
 
     rows.forEach(([label, value]) => {
-      doc.fontSize(11).text(`${label}: `, { continued: true, bold: true });
-      doc.fontSize(11).text(value || '');
+      doc.font('Helvetica-Bold').fontSize(11).text(`${label}: `, { continued: true });
+      doc.font('Helvetica').fontSize(11).text(value || '');
     });
 
     doc.moveDown();
@@ -79,8 +79,8 @@ async function generatePdf(filePath: string, data: CapaExportData) {
       doc.moveDown();
       doc.fontSize(12).text('Custom Parameters', { underline: true });
       data.custom_fields.forEach((f) => {
-        doc.fontSize(11).text(`${f.label}: `, { continued: true, bold: true });
-        doc.fontSize(11).text(f.value || '');
+        doc.font('Helvetica-Bold').fontSize(11).text(`${f.label}: `, { continued: true });
+        doc.font('Helvetica').fontSize(11).text(f.value || '');
       });
     }
 

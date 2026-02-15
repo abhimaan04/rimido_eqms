@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import axios from 'axios'
 import api from '@/lib/api'
 import ModulePageLayout from '@/components/ModulePageLayout'
 import { AlertCircle, X } from 'lucide-react'
@@ -111,7 +112,44 @@ export default function CAPAManagementPage() {
       link.remove()
       window.URL.revokeObjectURL(url)
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Failed to download file')
+      let message = 'Failed to download file'
+      if (axios.isAxiosError(error) && error.response?.data instanceof Blob) {
+        try {
+          const text = await error.response.data.text()
+          const parsed = JSON.parse(text)
+          message = parsed?.error?.message || parsed?.message || message
+        } catch {
+          // Fallback to default message when blob isn't JSON
+        }
+      } else {
+        message = error?.response?.data?.error?.message || error?.response?.data?.message || message
+      }
+      alert(message)
+    }
+  }
+
+  const handleViewPdf = async (capaId: string) => {
+    try {
+      const response = await api.get(`/capa/${capaId}/download?type=pdf`, {
+        responseType: 'blob',
+      })
+      const blob = new Blob([response.data], { type: 'application/pdf' })
+      const url = window.URL.createObjectURL(blob)
+      window.open(url, '_blank', 'noopener,noreferrer')
+    } catch (error: any) {
+      let message = 'Failed to open PDF'
+      if (axios.isAxiosError(error) && error.response?.data instanceof Blob) {
+        try {
+          const text = await error.response.data.text()
+          const parsed = JSON.parse(text)
+          message = parsed?.error?.message || parsed?.message || message
+        } catch {
+          // Fallback to default message when blob isn't JSON
+        }
+      } else {
+        message = error?.response?.data?.error?.message || error?.response?.data?.message || message
+      }
+      alert(message)
     }
   }
 
@@ -171,6 +209,13 @@ export default function CAPAManagementPage() {
                       <span className={`text-xs font-medium px-3 py-1 rounded-full capitalize ${c.priority === 'critical' ? 'bg-red-100 text-red-700' : c.priority === 'high' ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-700'}`}>
                         {c.priority}
                       </span>
+                      <button
+                        type="button"
+                        onClick={() => handleViewPdf(c.id)}
+                        className="text-xs px-2.5 py-1 rounded-lg border border-slate-300 hover:bg-slate-50"
+                      >
+                        View PDF
+                      </button>
                       <button
                         type="button"
                         onClick={() => handleDownload(c.id, 'pdf', c.capa_number)}
