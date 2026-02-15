@@ -15,7 +15,7 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
     fileSize: 5 * 1024 * 1024,
-    files: 10,
+    files: 30,
   },
   fileFilter: (_req, file, cb) => {
     if (file.mimetype.startsWith('image/')) {
@@ -41,6 +41,12 @@ function parseJsonArray(input: any): any[] | null {
 function sanitizeFilename(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]/g, '_');
 }
+
+type CapaDetailItem = {
+  title: string;
+  description: string;
+  image_paths?: string[];
+};
 
 function normalizeApprovers(input: any[]): Array<{ name: string; decision: 'approve' | 'disapprove' | null }> {
   return (input || [])
@@ -68,6 +74,19 @@ function normalizeApprovers(input: any[]): Array<{ name: string; decision: 'appr
       return { name, decision };
     })
     .filter((item: any) => item !== null);
+}
+
+function normalizeDetailItems(input: any[]): CapaDetailItem[] {
+  return (input || [])
+    .filter((item) => item && typeof item === 'object')
+    .map((item: any) => ({
+      title: typeof item.title === 'string' ? item.title.trim() : '',
+      description: typeof item.description === 'string' ? item.description.trim() : '',
+      image_paths: Array.isArray(item.image_paths)
+        ? item.image_paths.filter((p: any) => typeof p === 'string')
+        : [],
+    }))
+    .filter((item: CapaDetailItem) => item.title.length > 0 && item.description.length > 0);
 }
 
 async function saveCapaImages(capaId: string, files: Express.Multer.File[]): Promise<string[]> {
@@ -200,7 +219,7 @@ router.post(
   '/',
   authenticate,
   checkPermission('capa', 'create'),
-  upload.array('images', 10),
+  upload.any(),
   [
     body('title').trim().notEmpty(),
     body('type').isIn(['corrective', 'preventive']),
@@ -229,6 +248,7 @@ router.post(
 
       const approversRaw = parseJsonArray(req.body.approvers);
       const customFieldsRaw = parseJsonArray(req.body.custom_fields);
+      const detailItemsRaw = parseJsonArray(req.body.detail_items);
 
       const approvers = normalizeApprovers(approversRaw || []);
 
@@ -240,6 +260,22 @@ router.post(
         }))
         .filter((item) => item.label.length > 0);
 
+      let detail_items = normalizeDetailItems(detailItemsRaw || []);
+      if (detail_items.length === 0) {
+        const fallbackTitle = typeof title === 'string' ? title.trim() : '';
+        const fallbackDescription = typeof description === 'string' ? description.trim() : '';
+        if (fallbackTitle && fallbackDescription) {
+          detail_items = [{ title: fallbackTitle, description: fallbackDescription, image_paths: [] }];
+        }
+      }
+
+      if (detail_items.length === 0) {
+        throw new AppError('At least one CAPA detail item is required', 400);
+      }
+
+      const primaryTitle = detail_items[0].title;
+      const primaryDescription = detail_items[0].description;
+
       // Generate CAPA number
       const countResult = await pool.query('SELECT COUNT(*) as count FROM capa');
       const count = parseInt(countResult.rows[0].count) + 1;
@@ -247,12 +283,12 @@ router.post(
 
       const modernInsertValues = [
         capaNumber,
-        title,
+        primaryTitle,
         type,
         source,
         source_reference_id || null,
         priority,
-        description,
+        primaryDescription,
         owner_id || null,
         assigned_to || null,
         target_completion_date || null,
@@ -284,12 +320,12 @@ router.post(
            RETURNING *`,
           [
             capaNumber,
-            title,
+            primaryTitle,
             type,
             source,
             source_reference_id || null,
             priority,
-            description,
+            primaryDescription,
             owner_id || null,
             assigned_to || null,
             target_completion_date || null,
@@ -299,8 +335,36 @@ router.post(
       }
 
       const created = result.rows[0];
-      const imageFiles = (req.files as Express.Multer.File[]) || [];
-      const imagePaths = await saveCapaImages(created.id, imageFiles);
+      const allFiles = (req.files as Express.Multer.File[]) || [];
+      const detailImageMap = new Map<number, Express.Multer.File[]>();
+      allFiles.forEach((file) => {
+        const detailMatch = /^detail_images_(\d+)$/.exec(file.fieldname);
+        if (detailMatch) {
+          const index = parseInt(detailMatch[1], 10);
+          const existing = detailImageMap.get(index) || [];
+          existing.push(file);
+          detailImageMap.set(index, existing);
+          return;
+        }
+
+        // Backward compatibility for old frontend payload that sent images[]
+        if (file.fieldname === 'images') {
+          const existing = detailImageMap.get(0) || [];
+          existing.push(file);
+          detailImageMap.set(0, existing);
+        }
+      });
+
+      const detailItemsWithImages: CapaDetailItem[] = [];
+      for (let i = 0; i < detail_items.length; i += 1) {
+        const filesForDetail = detailImageMap.get(i) || [];
+        const savedPaths = await saveCapaImages(created.id, filesForDetail);
+        detailItemsWithImages.push({
+          ...detail_items[i],
+          image_paths: savedPaths,
+        });
+      }
+      const imagePaths = detailItemsWithImages.flatMap((item) => item.image_paths || []);
 
       const { pdfPath, docxPath } = await generateCapaFiles({
         capa_number: created.capa_number,
@@ -314,6 +378,7 @@ router.post(
         approvers,
         custom_fields,
         image_paths: imagePaths,
+        detail_items: detailItemsWithImages,
       });
 
       let responseData: any = {
@@ -342,6 +407,28 @@ router.post(
           capa_pdf_path: pdfPath,
           capa_docx_path: docxPath,
         };
+      }
+
+      if (detailItemsWithImages.length > 0) {
+        try {
+          const detailsUpdate = await pool.query(
+            `UPDATE capa
+             SET detail_items = $1
+             WHERE id = $2
+             RETURNING *`,
+            [detailItemsWithImages, created.id]
+          );
+          responseData = detailsUpdate.rows[0];
+        } catch (dbError: any) {
+          // Backward compatibility for databases that do not have detail_items yet.
+          if (dbError?.code !== '42703') {
+            throw dbError;
+          }
+          responseData = {
+            ...responseData,
+            detail_items: detailItemsWithImages,
+          };
+        }
       }
 
       if (imagePaths.length > 0) {
@@ -500,6 +587,7 @@ router.get(
           approvers: normalizeApprovers(row.approvers || []),
           custom_fields: row.custom_fields || [],
           image_paths: row.capa_images || [],
+          detail_items: normalizeDetailItems(row.detail_items || []),
         });
 
         filePath = type === 'pdf' ? regenerated.pdfPath : regenerated.docxPath;

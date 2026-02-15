@@ -199,6 +199,7 @@ CREATE TABLE capa (
     is_effective BOOLEAN,
     approvers JSONB, -- Free-text list of approver names
     custom_fields JSONB, -- Array of { label, value } pairs
+    detail_items JSONB, -- Array of { title, description, image_paths }
     capa_images JSONB, -- Array of uploaded image file paths
     capa_pdf_path VARCHAR(500),
     capa_docx_path VARCHAR(500),

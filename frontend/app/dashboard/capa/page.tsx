@@ -12,10 +12,20 @@ type ApproverEntry = {
   name: string
   decision: ApproverDecision
 }
+type CapaDetailEntry = {
+  title: string
+  description: string
+  images: File[]
+}
 
 const emptyApprover = (): ApproverEntry => ({
   name: '',
   decision: '',
+})
+const emptyDetailItem = (): CapaDetailEntry => ({
+  title: '',
+  description: '',
+  images: [],
 })
 
 export default function CAPAManagementPage() {
@@ -26,13 +36,11 @@ export default function CAPAManagementPage() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [newCapa, setNewCapa] = useState({
-    title: '',
     type: 'corrective',
     source: 'internal_audit',
     priority: 'medium',
-    description: '',
     approvers: [emptyApprover()] as ApproverEntry[],
-    images: [] as File[],
+    details: [emptyDetailItem()] as CapaDetailEntry[],
   })
 
   useEffect(() => {
@@ -80,16 +88,45 @@ export default function CAPAManagementPage() {
         return
       }
 
+      const details = newCapa.details
+        .map((item) => ({
+          title: item.title.trim(),
+          description: item.description.trim(),
+          images: item.images,
+        }))
+        .filter((item) => item.title.length > 0 || item.description.length > 0 || item.images.length > 0)
+
+      if (details.length === 0) {
+        alert('Please add at least one CAPA detail item.')
+        return
+      }
+
+      if (details.some((item) => item.title.length === 0 || item.description.length === 0)) {
+        alert('Each CAPA detail item must include both title and description.')
+        return
+      }
+
       const formData = new FormData()
-      formData.append('title', newCapa.title.trim())
+      formData.append('title', details[0].title)
       formData.append('type', newCapa.type)
       formData.append('source', newCapa.source)
       formData.append('priority', newCapa.priority)
-      formData.append('description', newCapa.description.trim())
+      formData.append('description', details[0].description)
       formData.append('approvers', JSON.stringify(approvers))
       formData.append('custom_fields', JSON.stringify([]))
-      newCapa.images.forEach((file) => {
-        formData.append('images', file)
+      formData.append(
+        'detail_items',
+        JSON.stringify(
+          details.map((item) => ({
+            title: item.title,
+            description: item.description,
+          }))
+        )
+      )
+      details.forEach((item, detailIndex) => {
+        item.images.forEach((file) => {
+          formData.append(`detail_images_${detailIndex}`, file)
+        })
       })
 
       await api.post('/capa', formData, {
@@ -100,13 +137,11 @@ export default function CAPAManagementPage() {
       alert('CAPA created successfully!')
       setShowCreateModal(false)
       setNewCapa({
-        title: '',
         type: 'corrective',
         source: 'internal_audit',
         priority: 'medium',
-        description: '',
         approvers: [emptyApprover()],
-        images: [],
+        details: [emptyDetailItem()],
       })
       loadData()
     } catch (error: any) {
@@ -167,24 +202,83 @@ export default function CAPAManagementPage() {
     })
   }
 
-  const handleImagesSelected = (files: FileList | null) => {
+  const handleDetailTitleChange = (index: number, title: string) => {
+    setNewCapa((prev) => {
+      const next = [...prev.details]
+      next[index] = {
+        ...next[index],
+        title,
+      }
+      return {
+        ...prev,
+        details: next,
+      }
+    })
+  }
+
+  const handleDetailDescriptionChange = (index: number, description: string) => {
+    setNewCapa((prev) => {
+      const next = [...prev.details]
+      next[index] = {
+        ...next[index],
+        description,
+      }
+      return {
+        ...prev,
+        details: next,
+      }
+    })
+  }
+
+  const handleDetailImagesSelected = (detailIndex: number, files: FileList | null) => {
     if (!files || files.length === 0) {
       return
     }
     const selected = Array.from(files).filter((f) => f.type.startsWith('image/'))
+    setNewCapa((prev) => {
+      const next = [...prev.details]
+      const existing = next[detailIndex]?.images || []
+      next[detailIndex] = {
+        ...next[detailIndex],
+        images: [...existing, ...selected].slice(0, 10),
+      }
+      return {
+        ...prev,
+        details: next,
+      }
+    })
+  }
+
+  const handleRemoveDetailImage = (detailIndex: number, imageIndex: number) => {
+    setNewCapa((prev) => {
+      const next = [...prev.details]
+      const images = [...(next[detailIndex]?.images || [])]
+      images.splice(imageIndex, 1)
+      next[detailIndex] = {
+        ...next[detailIndex],
+        images,
+      }
+      return {
+        ...prev,
+        details: next,
+      }
+    })
+  }
+
+  const addDetailItem = () => {
     setNewCapa((prev) => ({
       ...prev,
-      images: [...prev.images, ...selected].slice(0, 10),
+      details: [...prev.details, emptyDetailItem()],
     }))
   }
 
-  const handleRemoveImage = (index: number) => {
+  const removeDetailItem = (index: number) => {
     setNewCapa((prev) => {
-      const next = [...prev.images]
+      const next = [...prev.details]
       next.splice(index, 1)
       return {
         ...prev,
-        images: next,
+        details: next.length > 0 ? next : [emptyDetailItem()],
       }
     })
   }
@@ -421,55 +515,76 @@ export default function CAPAManagementPage() {
 
               <div className="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-4">
                 <h4 className="font-semibold text-slate-900">CAPA Details</h4>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Title *</label>
-                  <input
-                    type="text"
-                    required
-                    value={newCapa.title}
-                    onChange={(e) => setNewCapa({ ...newCapa, title: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                    placeholder="CAPA title"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Description *</label>
-                  <textarea
-                    required
-                    value={newCapa.description}
-                    onChange={(e) => setNewCapa({ ...newCapa, description: e.target.value })}
-                    rows={4}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                    placeholder="Describe the CAPA..."
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Images</label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    onChange={(e) => handleImagesSelected(e.target.files)}
-                    className="block w-full text-sm text-slate-700 file:mr-3 file:rounded-lg file:border file:border-slate-300 file:px-3 file:py-1.5 file:text-sm file:bg-white file:hover:bg-slate-50"
-                  />
-                  <p className="text-xs text-slate-500 mt-2">Optional. Up to 10 images, 5MB each.</p>
-                  {newCapa.images.length > 0 && (
-                    <ul className="mt-3 space-y-2">
-                      {newCapa.images.map((img, idx) => (
-                        <li key={`${img.name}-${idx}`} className="flex items-center justify-between text-sm bg-white border border-slate-200 rounded-lg px-3 py-2">
-                          <span className="text-slate-700 truncate pr-3">{img.name}</span>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveImage(idx)}
-                            className="px-2 py-1 border border-slate-300 rounded-lg hover:bg-slate-50 text-xs"
-                          >
-                            Remove
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
+                {newCapa.details.map((detail, detailIndex) => (
+                  <div key={`detail-${detailIndex}`} className="bg-white border border-slate-200 rounded-lg p-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h5 className="text-sm font-semibold text-slate-800">Detail {detailIndex + 1}</h5>
+                      <button
+                        type="button"
+                        onClick={() => removeDetailItem(detailIndex)}
+                        className="px-2.5 py-1.5 border border-slate-300 rounded-lg hover:bg-slate-50 text-xs"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Title *</label>
+                      <input
+                        type="text"
+                        required={detailIndex === 0}
+                        value={detail.title}
+                        onChange={(e) => handleDetailTitleChange(detailIndex, e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                        placeholder="CAPA detail title"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Description *</label>
+                      <textarea
+                        required={detailIndex === 0}
+                        value={detail.description}
+                        onChange={(e) => handleDetailDescriptionChange(detailIndex, e.target.value)}
+                        rows={4}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                        placeholder="Describe this CAPA detail..."
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Images</label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={(e) => handleDetailImagesSelected(detailIndex, e.target.files)}
+                        className="block w-full text-sm text-slate-700 file:mr-3 file:rounded-lg file:border file:border-slate-300 file:px-3 file:py-1.5 file:text-sm file:bg-white file:hover:bg-slate-50"
+                      />
+                      <p className="text-xs text-slate-500 mt-2">Optional. Up to 10 images per detail, 5MB each.</p>
+                      {detail.images.length > 0 && (
+                        <ul className="mt-3 space-y-2">
+                          {detail.images.map((img, imageIndex) => (
+                            <li key={`${img.name}-${imageIndex}`} className="flex items-center justify-between text-sm bg-white border border-slate-200 rounded-lg px-3 py-2">
+                              <span className="text-slate-700 truncate pr-3">{img.name}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveDetailImage(detailIndex, imageIndex)}
+                                className="px-2 py-1 border border-slate-300 rounded-lg hover:bg-slate-50 text-xs"
+                              >
+                                Remove
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={addDetailItem}
+                  className="text-sm px-3 py-2 border border-dashed border-slate-300 rounded-lg hover:bg-white"
+                >
+                  Add Detail Item
+                </button>
               </div>
               <div className="flex gap-3 pt-4">
                 <button

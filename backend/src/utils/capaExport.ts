@@ -15,6 +15,7 @@ type CapaExportData = {
   approvers?: Array<string | { name: string; decision?: string | null }> | null;
   custom_fields?: Array<{ label: string; value: string }> | null;
   image_paths?: string[] | null;
+  detail_items?: Array<{ title: string; description: string; image_paths?: string[] }> | null;
 };
 
 function formatApprover(approver: string | { name: string; decision?: string | null }): string {
@@ -94,6 +95,21 @@ async function generatePdf(filePath: string, data: CapaExportData) {
       });
     }
 
+    if (data.detail_items && data.detail_items.length > 0) {
+      doc.moveDown();
+      doc.fontSize(12).text('CAPA Details', { underline: true });
+      data.detail_items.forEach((item, index) => {
+        doc.moveDown(0.25);
+        doc.font('Helvetica-Bold').fontSize(11).text(`Detail ${index + 1}: ${item.title}`);
+        doc.font('Helvetica').fontSize(11).text(item.description || '');
+        if (item.image_paths && item.image_paths.length > 0) {
+          item.image_paths.forEach((imgPath) => {
+            doc.font('Helvetica').fontSize(10).text(`  - ${path.basename(imgPath)}`);
+          });
+        }
+      });
+    }
+
     if (data.image_paths && data.image_paths.length > 0) {
       doc.moveDown();
       doc.fontSize(12).text('Image Attachments', { underline: true });
@@ -168,6 +184,28 @@ async function generateDocx(filePath: string, data: CapaExportData) {
           ],
         })
       );
+    });
+  }
+
+  if (data.detail_items && data.detail_items.length > 0) {
+    paragraphs.push(new Paragraph({ text: '' }));
+    paragraphs.push(
+      new Paragraph({
+        children: [new TextRun({ text: 'CAPA Details', bold: true })],
+      })
+    );
+    data.detail_items.forEach((item, index) => {
+      paragraphs.push(
+        new Paragraph({
+          children: [new TextRun({ text: `Detail ${index + 1}: ${item.title}`, bold: true })],
+        })
+      );
+      paragraphs.push(new Paragraph({ text: item.description || '' }));
+      if (item.image_paths && item.image_paths.length > 0) {
+        item.image_paths.forEach((imgPath) => {
+          paragraphs.push(new Paragraph({ text: `- ${path.basename(imgPath)}` }));
+        });
+      }
     });
   }
 
