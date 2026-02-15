@@ -368,49 +368,6 @@ export default function CAPAManagementPage() {
     }
   }
 
-  const handleRemoveFiles = async (capaId: string, capaNumber: string) => {
-    const confirmed = window.confirm(
-      `Remove server files for ${capaNumber}?\n\nThis does not delete files already downloaded to your device.`
-    )
-    if (!confirmed) {
-      return
-    }
-
-    try {
-      let response
-      try {
-        response = await api.delete(`/capa/${capaId}/files`)
-      } catch (error: any) {
-        // Fallback for environments where DELETE may be blocked/routed differently.
-        if (axios.isAxiosError(error) && error.response?.status === 404) {
-          response = await api.post(`/capa/${capaId}/files/remove`)
-        } else {
-          throw error
-        }
-      }
-      const deleted = response.data?.data?.deleted_files ?? 0
-      const missing = response.data?.data?.missing_files ?? 0
-      const blocked = response.data?.data?.blocked_files ?? 0
-      if (deleted === 0 && missing > 0) {
-        alert(`Server files were already removed. Missing ${missing} file(s).`)
-      } else {
-        alert(`Server files removed. Deleted ${deleted} file(s). Missing ${missing}. Blocked ${blocked}.`)
-      }
-      loadData()
-    } catch (error: any) {
-      let message = 'Failed to remove CAPA files'
-      if (axios.isAxiosError(error) && error.response?.data) {
-        const payload = error.response.data as any
-        if (typeof payload === 'string') {
-          message = payload
-        } else {
-          message = payload?.error?.message || payload?.message || message
-        }
-      }
-      alert(message)
-    }
-  }
-
   const handleDeleteCapa = async (capaId: string, capaNumber: string) => {
     const confirmed = window.confirm(
       `Delete CAPA ${capaNumber}?\n\nThis will hide it from the CAPA list and remove server files.`
@@ -527,13 +484,6 @@ export default function CAPAManagementPage() {
                         className="text-xs px-2.5 py-1 rounded-lg border border-slate-300 hover:bg-slate-50"
                       >
                         Download Word
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveFiles(c.id, c.capa_number)}
-                        className="text-xs px-2.5 py-1 rounded-lg border border-red-300 text-red-700 hover:bg-red-50"
-                      >
-                        Remove Server Files
                       </button>
                       <button
                         type="button"
