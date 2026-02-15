@@ -89,7 +89,12 @@ export default function CAPAManagementPage() {
       setCustomFieldCount(1)
       loadData()
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Failed to create CAPA')
+      let message = 'Failed to create CAPA'
+      if (axios.isAxiosError(error) && error.response?.data) {
+        const payload = error.response.data as any
+        message = payload?.error?.message || payload?.message || message
+      }
+      alert(message)
     } finally {
       setSubmitting(false)
     }

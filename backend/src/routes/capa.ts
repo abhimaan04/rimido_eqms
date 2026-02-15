@@ -153,28 +153,58 @@ router.post(
       const count = parseInt(countResult.rows[0].count) + 1;
       const capaNumber = `CAPA-${String(count).padStart(5, '0')}`;
 
-      const result = await pool.query(
-        `INSERT INTO capa 
-         (capa_number, title, type, source, source_reference_id, priority, description,
-          owner_id, assigned_to, target_completion_date, approvers, custom_fields, status, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'initiated', $13)
-         RETURNING *`,
-        [
-          capaNumber,
-          title,
-          type,
-          source,
-          source_reference_id || null,
-          priority,
-          description,
-          owner_id || null,
-          assigned_to || null,
-          target_completion_date || null,
-          approvers && Array.isArray(approvers) ? approvers : null,
-          custom_fields && Array.isArray(custom_fields) ? custom_fields : null,
-          req.user!.id,
-        ]
-      );
+      const modernInsertValues = [
+        capaNumber,
+        title,
+        type,
+        source,
+        source_reference_id || null,
+        priority,
+        description,
+        owner_id || null,
+        assigned_to || null,
+        target_completion_date || null,
+        approvers && Array.isArray(approvers) ? approvers : null,
+        custom_fields && Array.isArray(custom_fields) ? custom_fields : null,
+        req.user!.id,
+      ];
+
+      let result;
+      try {
+        result = await pool.query(
+          `INSERT INTO capa 
+           (capa_number, title, type, source, source_reference_id, priority, description,
+            owner_id, assigned_to, target_completion_date, approvers, custom_fields, status, created_by)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'initiated', $13)
+           RETURNING *`,
+          modernInsertValues
+        );
+      } catch (dbError: any) {
+        // Backward compatibility for databases that do not have approvers/custom_fields yet.
+        if (dbError?.code !== '42703') {
+          throw dbError;
+        }
+        result = await pool.query(
+          `INSERT INTO capa 
+           (capa_number, title, type, source, source_reference_id, priority, description,
+            owner_id, assigned_to, target_completion_date, status, created_by)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'initiated', $11)
+           RETURNING *`,
+          [
+            capaNumber,
+            title,
+            type,
+            source,
+            source_reference_id || null,
+            priority,
+            description,
+            owner_id || null,
+            assigned_to || null,
+            target_completion_date || null,
+            req.user!.id,
+          ]
+        );
+      }
 
       const created = result.rows[0];
       const { pdfPath, docxPath } = await generateCapaFiles({
