@@ -387,7 +387,13 @@ export default function CAPAManagementPage() {
         }
       }
       const deleted = response.data?.data?.deleted_files ?? 0
-      alert(`Files removed. Deleted ${deleted} file(s).`)
+      const missing = response.data?.data?.missing_files ?? 0
+      const blocked = response.data?.data?.blocked_files ?? 0
+      if (deleted === 0 && missing > 0) {
+        alert(`No files were newly deleted. ${missing} file(s) were already missing.`)
+      } else {
+        alert(`Files removed. Deleted ${deleted} file(s). Missing ${missing}. Blocked ${blocked}.`)
+      }
       loadData()
     } catch (error: any) {
       let message = 'Failed to remove CAPA files'

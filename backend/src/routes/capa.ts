@@ -141,6 +141,24 @@ function removeFileIfAllowed(filePath: string): 'deleted' | 'missing' | 'blocked
   return 'deleted';
 }
 
+function countFilesInDirectory(dirPath: string): number {
+  if (!fs.existsSync(dirPath)) {
+    return 0;
+  }
+
+  const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+  let count = 0;
+  entries.forEach((entry) => {
+    const fullPath = path.join(dirPath, entry.name);
+    if (entry.isDirectory()) {
+      count += countFilesInDirectory(fullPath);
+    } else {
+      count += 1;
+    }
+  });
+  return count;
+}
+
 // Get all CAPA records
 router.get(
   '/',
@@ -621,6 +639,9 @@ const removeCapaFilesHandler = async (req: any, res: any, next: any) => {
 
     const row = result.rows[0];
     const filePaths = new Set<string>();
+    const capaBaseName = sanitizeFilename(String(row.capa_number || 'CAPA'));
+    const defaultPdfPath = path.resolve(__dirname, '../../..', 'uploads', 'capa', `${capaBaseName}.pdf`);
+    const defaultDocxPath = path.resolve(__dirname, '../../..', 'uploads', 'capa', `${capaBaseName}.docx`);
 
     if (typeof row.capa_pdf_path === 'string' && row.capa_pdf_path.length > 0) {
       filePaths.add(row.capa_pdf_path);
@@ -628,6 +649,9 @@ const removeCapaFilesHandler = async (req: any, res: any, next: any) => {
     if (typeof row.capa_docx_path === 'string' && row.capa_docx_path.length > 0) {
       filePaths.add(row.capa_docx_path);
     }
+    // Backward compatibility: files may exist at deterministic export paths even when DB columns are null.
+    filePaths.add(defaultPdfPath);
+    filePaths.add(defaultDocxPath);
 
     if (Array.isArray(row.capa_images)) {
       row.capa_images.forEach((p: any) => {
@@ -660,7 +684,9 @@ const removeCapaFilesHandler = async (req: any, res: any, next: any) => {
     const imageDir = path.resolve(__dirname, '../../..', 'uploads', 'capa', 'images', row.id);
     if (isInsideUploads(imageDir) && fs.existsSync(imageDir)) {
       try {
+        const remainingFilesBeforeCleanup = countFilesInDirectory(imageDir);
         fs.rmSync(imageDir, { recursive: true, force: true });
+        deletedCount += remainingFilesBeforeCleanup;
       } catch {
         // Non-fatal: file deletion result remains valid even if directory cleanup fails.
       }
