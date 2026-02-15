@@ -770,6 +770,14 @@ router.get(
       }
 
       const row = result.rows[0];
+      const hasPdfPathColumn = Object.prototype.hasOwnProperty.call(row, 'capa_pdf_path');
+      const hasDocxPathColumn = Object.prototype.hasOwnProperty.call(row, 'capa_docx_path');
+      // If both export path columns are present and null, files were intentionally removed.
+      // In that case do not regenerate on download.
+      if (hasPdfPathColumn && hasDocxPathColumn && !row.capa_pdf_path && !row.capa_docx_path) {
+        throw new AppError('CAPA files were removed. Please regenerate files before downloading.', 404);
+      }
+
       let filePath = type === 'pdf' ? row.capa_pdf_path : row.capa_docx_path;
       if (!filePath || !fs.existsSync(filePath)) {
         const regenerated = await generateCapaFiles({

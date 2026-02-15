@@ -369,7 +369,9 @@ export default function CAPAManagementPage() {
   }
 
   const handleRemoveFiles = async (capaId: string, capaNumber: string) => {
-    const confirmed = window.confirm(`Remove generated files for ${capaNumber}?`)
+    const confirmed = window.confirm(
+      `Remove server files for ${capaNumber}?\n\nThis does not delete files already downloaded to your device.`
+    )
     if (!confirmed) {
       return
     }
@@ -390,9 +392,9 @@ export default function CAPAManagementPage() {
       const missing = response.data?.data?.missing_files ?? 0
       const blocked = response.data?.data?.blocked_files ?? 0
       if (deleted === 0 && missing > 0) {
-        alert(`No files were newly deleted. ${missing} file(s) were already missing.`)
+        alert(`Server files were already removed. Missing ${missing} file(s).`)
       } else {
-        alert(`Files removed. Deleted ${deleted} file(s). Missing ${missing}. Blocked ${blocked}.`)
+        alert(`Server files removed. Deleted ${deleted} file(s). Missing ${missing}. Blocked ${blocked}.`)
       }
       loadData()
     } catch (error: any) {
