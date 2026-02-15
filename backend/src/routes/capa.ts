@@ -939,52 +939,41 @@ router.get(
       }
 
       const row = result.rows[0];
-      const hasPdfPathColumn = Object.prototype.hasOwnProperty.call(row, 'capa_pdf_path');
-      const hasDocxPathColumn = Object.prototype.hasOwnProperty.call(row, 'capa_docx_path');
-      // If both export path columns are present and null, files were intentionally removed.
-      // In that case do not regenerate on download.
-      if (hasPdfPathColumn && hasDocxPathColumn && !row.capa_pdf_path && !row.capa_docx_path) {
-        throw new AppError('CAPA files were removed. Please regenerate files before downloading.', 404);
-      }
+      const regenerated = await generateCapaFiles({
+        capa_number: row.capa_number,
+        title: row.title,
+        type: row.type,
+        source: row.source,
+        priority: row.priority,
+        status: row.status,
+        description: row.description,
+        target_completion_date: row.target_completion_date,
+        approvers: normalizeApprovers(row.approvers || []).map((approver) => ({
+          name: approver.name,
+          decision: approver.decision,
+        })),
+        custom_fields: row.custom_fields || [],
+        custom_table: normalizeCustomTable(row.custom_table || null),
+        image_paths: row.capa_images || [],
+        detail_items: normalizeDetailItems(row.detail_items || []),
+      });
 
-      let filePath = type === 'pdf' ? row.capa_pdf_path : row.capa_docx_path;
-      if (regenerate || !filePath || !fs.existsSync(filePath)) {
-        const regenerated = await generateCapaFiles({
-          capa_number: row.capa_number,
-          title: row.title,
-          type: row.type,
-          source: row.source,
-          priority: row.priority,
-          status: row.status,
-          description: row.description,
-          target_completion_date: row.target_completion_date,
-          approvers: normalizeApprovers(row.approvers || []).map((approver) => ({
-            name: approver.name,
-            decision: approver.decision,
-          })),
-          custom_fields: row.custom_fields || [],
-          custom_table: normalizeCustomTable(row.custom_table || null),
-          image_paths: row.capa_images || [],
-          detail_items: normalizeDetailItems(row.detail_items || []),
-        });
-
-        filePath = type === 'pdf' ? regenerated.pdfPath : regenerated.docxPath;
-        try {
-          const updated = await pool.query(
-            `UPDATE capa
-             SET capa_pdf_path = $1,
-                 capa_docx_path = $2
-             WHERE id = $3
-             RETURNING capa_pdf_path, capa_docx_path`,
-            [regenerated.pdfPath, regenerated.docxPath, row.id]
-          );
-          const updatedRow = updated.rows[0];
-          filePath = type === 'pdf' ? updatedRow.capa_pdf_path : updatedRow.capa_docx_path;
-        } catch (dbError: any) {
-          // Backward compatibility for databases missing export path columns.
-          if (dbError?.code !== '42703') {
-            throw dbError;
-          }
+      let filePath = type === 'pdf' ? regenerated.pdfPath : regenerated.docxPath;
+      try {
+        const updated = await pool.query(
+          `UPDATE capa
+           SET capa_pdf_path = $1,
+               capa_docx_path = $2
+           WHERE id = $3
+           RETURNING capa_pdf_path, capa_docx_path`,
+          [regenerated.pdfPath, regenerated.docxPath, row.id]
+        );
+        const updatedRow = updated.rows[0];
+        filePath = type === 'pdf' ? updatedRow.capa_pdf_path : updatedRow.capa_docx_path;
+      } catch (dbError: any) {
+        // Backward compatibility for databases missing export path columns.
+        if (dbError?.code !== '42703') {
+          throw dbError;
         }
       }
 
@@ -994,6 +983,7 @@ router.get(
 
       const filenameBase = row.capa_number || 'CAPA';
       const filename = `${filenameBase}.${type}`;
+      res.setHeader('Cache-Control', 'no-store');
       res.download(path.resolve(filePath), filename);
     } catch (error) {
       next(error);
