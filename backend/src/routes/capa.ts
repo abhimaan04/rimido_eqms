@@ -457,8 +457,8 @@ router.post(
         throw new AppError('At least one CAPA detail item is required', 400);
       }
 
-      const primaryTitle = detail_items[0].title;
-      const primaryDescription = detail_items[0].description;
+      const primaryTitle = typeof title === 'string' ? title.trim() : '';
+      const primaryDescription = typeof description === 'string' ? description.trim() : '';
 
       // Generate CAPA number
       const countResult = await pool.query('SELECT COUNT(*) as count FROM capa');
@@ -922,6 +922,10 @@ router.get(
   async (req, res, next) => {
     try {
       const { type } = req.query;
+      const regenerate =
+        req.query.regenerate === '1' ||
+        req.query.regenerate === 'true' ||
+        req.query.regenerate === true;
       if (type !== 'pdf' && type !== 'docx') {
         throw new AppError('Invalid file type requested', 400);
       }
@@ -944,7 +948,7 @@ router.get(
       }
 
       let filePath = type === 'pdf' ? row.capa_pdf_path : row.capa_docx_path;
-      if (!filePath || !fs.existsSync(filePath)) {
+      if (regenerate || !filePath || !fs.existsSync(filePath)) {
         const regenerated = await generateCapaFiles({
           capa_number: row.capa_number,
           title: row.title,

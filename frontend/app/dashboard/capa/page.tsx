@@ -54,6 +54,8 @@ export default function CAPAManagementPage() {
     type: 'corrective',
     source: 'internal_audit',
     priority: 'medium',
+    summaryTitle: '',
+    summaryDescription: '',
     approvers: [emptyApprover()] as ApproverEntry[],
     details: [emptyDetailItem()] as CapaDetailEntry[],
     customTable: emptyCustomTable() as CapaCustomTable,
@@ -95,6 +97,14 @@ export default function CAPAManagementPage() {
         }))
         .filter((a) => a.name.length > 0)
 
+      const summaryTitle = newCapa.summaryTitle.trim()
+      const summaryDescription = newCapa.summaryDescription.trim()
+
+      if (!summaryTitle || !summaryDescription) {
+        alert('CAPA Summary Title and Description are required.')
+        return
+      }
+
       if (approvers.length === 0) {
         alert('Please add at least one approver.')
         return
@@ -129,11 +139,11 @@ export default function CAPAManagementPage() {
       }
 
       const formData = new FormData()
-      formData.append('title', details[0].title)
+      formData.append('title', summaryTitle)
       formData.append('type', newCapa.type)
       formData.append('source', newCapa.source)
       formData.append('priority', newCapa.priority)
-      formData.append('description', details[0].description)
+      formData.append('description', summaryDescription)
       formData.append('approvers', JSON.stringify(approvers))
       formData.append('custom_fields', JSON.stringify([]))
       formData.append('custom_table', JSON.stringify(newCapa.customTable))
@@ -163,6 +173,8 @@ export default function CAPAManagementPage() {
         type: 'corrective',
         source: 'internal_audit',
         priority: 'medium',
+        summaryTitle: '',
+        summaryDescription: '',
         approvers: [emptyApprover()],
         details: [emptyDetailItem()],
         customTable: emptyCustomTable(),
@@ -366,7 +378,7 @@ export default function CAPAManagementPage() {
 
   const handleDownload = async (capaId: string, type: 'pdf' | 'docx', capaNumber: string) => {
     try {
-      const response = await api.get(`/capa/${capaId}/download?type=${type}`, {
+      const response = await api.get(`/capa/${capaId}/download?type=${type}&regenerate=1`, {
         responseType: 'blob',
       })
       const blob = new Blob([response.data], {
@@ -399,7 +411,7 @@ export default function CAPAManagementPage() {
 
   const handleViewPdf = async (capaId: string) => {
     try {
-      const response = await api.get(`/capa/${capaId}/download?type=pdf`, {
+      const response = await api.get(`/capa/${capaId}/download?type=pdf&regenerate=1`, {
         responseType: 'blob',
       })
       const blob = new Blob([response.data], { type: 'application/pdf' })
@@ -647,6 +659,32 @@ export default function CAPAManagementPage() {
                   >
                     Add Approver
                   </button>
+                </div>
+              </div>
+
+              <div className="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-3">
+                <h4 className="font-semibold text-slate-900">CAPA Summary</h4>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Title *</label>
+                  <input
+                    type="text"
+                    required
+                    value={newCapa.summaryTitle}
+                    onChange={(e) => setNewCapa((prev) => ({ ...prev, summaryTitle: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                    placeholder="Overall CAPA title"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Description *</label>
+                  <textarea
+                    required
+                    value={newCapa.summaryDescription}
+                    onChange={(e) => setNewCapa((prev) => ({ ...prev, summaryDescription: e.target.value }))}
+                    rows={4}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                    placeholder="Overall CAPA description..."
+                  />
                 </div>
               </div>
 

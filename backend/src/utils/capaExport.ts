@@ -5,6 +5,7 @@ import {
   AlignmentType,
   BorderStyle,
   Document,
+  ImageRun,
   Packer,
   Paragraph,
   Table,
@@ -50,8 +51,10 @@ function safeFilename(name: string) {
 }
 
 function hasTableData(table: CapaExportData['custom_table']) {
-  if (!table || !Array.isArray(table.data)) return false;
-  return table.data.some((row) => Array.isArray(row) && row.some((cell) => String(cell || '').trim().length > 0));
+  if (!table) return false;
+  if (!Number.isFinite(table.rows) || !Number.isFinite(table.columns)) return false;
+  if (table.rows <= 0 || table.columns <= 0) return false;
+  return true;
 }
 
 export async function generateCapaFiles(data: CapaExportData) {
@@ -138,20 +141,6 @@ async function generatePdf(filePath: string, data: CapaExportData) {
     });
     doc.y += 70;
 
-    const overviewRows: Array<[string, string]> = [
-      ['CAPA Number', data.capa_number],
-      ['Type', data.type],
-      ['Source', data.source],
-      ['Priority', data.priority],
-      ['Status', data.status],
-      ['Target Completion Date', data.target_completion_date || ''],
-    ];
-
-    drawSectionTitle('Overview');
-    overviewRows.forEach(([label, value], index) => {
-      drawKeyValueRow(label, value, index);
-    });
-
     if (data.detail_items && data.detail_items.length > 0) {
       drawSectionTitle('CAPA Details');
       data.detail_items.forEach((item, index) => {
@@ -170,13 +159,28 @@ async function generatePdf(filePath: string, data: CapaExportData) {
         doc.y += 82;
         if (item.image_paths && item.image_paths.length > 0) {
           item.image_paths.forEach((imgPath) => {
-            ensureSpace(16);
-            doc.font('Helvetica-Oblique').fontSize(9).fillColor('#6b7280').text(`Attachment: ${path.basename(imgPath)}`, {
+            if (!fs.existsSync(imgPath)) {
+              ensureSpace(16);
+              doc
+                .font('Helvetica-Oblique')
+                .fontSize(9)
+                .fillColor('#6b7280')
+                .text(`Attachment missing: ${path.basename(imgPath)}`, { indent: 10 });
+              return;
+            }
+
+            ensureSpace(220);
+            doc.font('Helvetica-Oblique').fontSize(9).fillColor('#6b7280').text(`Image: ${path.basename(imgPath)}`, {
               indent: 10,
             });
+            const imageY = doc.y + 6;
+            const imageWidth = contentWidth - 16;
+            const imageMaxHeight = 180;
+            doc.image(imgPath, margin + 8, imageY, { fit: [imageWidth, imageMaxHeight] });
+            doc.y = imageY + imageMaxHeight + 6;
           });
         }
-        doc.moveDown(0.4);
+        doc.moveDown(0.6);
       });
     }
 
@@ -187,8 +191,14 @@ async function generatePdf(filePath: string, data: CapaExportData) {
       const cellWidth = contentWidth / columns;
       const rowHeight = 24;
       let y = doc.y;
+      const tableRows =
+        Array.isArray(table.data) && table.data.length > 0
+          ? table.data
+          : Array.from({ length: table.rows }, () =>
+              Array.from({ length: table.columns }, () => '')
+            );
 
-      table.data.forEach((row, rowIndex) => {
+      tableRows.forEach((row, rowIndex) => {
         if (y + rowHeight > pageBottom()) {
           doc.addPage();
           doc.font('Helvetica').fillColor('#111827');
@@ -223,14 +233,6 @@ async function generatePdf(filePath: string, data: CapaExportData) {
       });
     }
 
-    if (data.image_paths && data.image_paths.length > 0) {
-      drawSectionTitle('Image Attachments');
-      data.image_paths.forEach((imgPath) => {
-        ensureSpace(16);
-        doc.font('Helvetica').fontSize(10).fillColor('#111827').text(`- ${path.basename(imgPath)}`);
-      });
-    }
-
     doc.end();
     stream.on('finish', () => resolve());
     stream.on('error', reject);
@@ -244,42 +246,6 @@ async function generateDocx(filePath: string, data: CapaExportData) {
     left: { style: BorderStyle.SINGLE, size: 1, color: 'D1D5DB' },
     right: { style: BorderStyle.SINGLE, size: 1, color: 'D1D5DB' },
   };
-
-  const rows: Array<[string, string]> = [
-    ['CAPA Number', data.capa_number],
-    ['Type', data.type],
-    ['Source', data.source],
-    ['Priority', data.priority],
-    ['Status', data.status],
-    ['Target Completion Date', data.target_completion_date || ''],
-  ];
-
-  const metadataTable = new Table({
-    width: { size: 100, type: WidthType.PERCENTAGE },
-    rows: rows.map(
-      ([label, value], index) =>
-        new TableRow({
-          children: [
-            new TableCell({
-              borders: border,
-              width: { size: 35, type: WidthType.PERCENTAGE },
-              shading: index % 2 === 0 ? { fill: 'F8FAFC' } : undefined,
-              children: [
-                new Paragraph({
-                  children: [new TextRun({ text: label, bold: true })],
-                }),
-              ],
-            }),
-            new TableCell({
-              borders: border,
-              width: { size: 65, type: WidthType.PERCENTAGE },
-              shading: index % 2 === 0 ? { fill: 'F8FAFC' } : undefined,
-              children: [new Paragraph(String(value || '-'))],
-            }),
-          ],
-        })
-    ),
-  });
 
   const children: Array<Paragraph | Table> = [
     new Paragraph({
@@ -344,14 +310,6 @@ async function generateDocx(filePath: string, data: CapaExportData) {
     })
   );
 
-  children.push(new Paragraph({ text: '' }));
-  children.push(
-    new Paragraph({
-      children: [new TextRun({ text: 'Overview', bold: true, size: 24, color: '1F2937' })],
-    })
-  );
-  children.push(metadataTable);
-
   if (data.detail_items && data.detail_items.length > 0) {
     children.push(new Paragraph({ text: '' }));
     children.push(
@@ -368,14 +326,39 @@ async function generateDocx(filePath: string, data: CapaExportData) {
       children.push(new Paragraph({ text: item.description || '-' }));
       if (item.image_paths && item.image_paths.length > 0) {
         item.image_paths.forEach((imgPath) => {
-          children.push(new Paragraph({ text: `Attachment: ${path.basename(imgPath)}` }));
+          if (!fs.existsSync(imgPath)) {
+            children.push(new Paragraph({ text: `Missing: ${path.basename(imgPath)}` }));
+            return;
+          }
+          const imageBuffer = fs.readFileSync(imgPath);
+          children.push(
+            new Paragraph({
+              children: [new TextRun({ text: path.basename(imgPath), italics: true, color: '6B7280' })],
+            })
+          );
+          children.push(
+            new Paragraph({
+              children: [
+                new ImageRun({
+                  data: imageBuffer,
+                  transformation: { width: 480, height: 320 },
+                }),
+              ],
+            })
+          );
         });
       }
     });
   }
 
   if (hasTableData(data.custom_table)) {
-    const tableRows = data.custom_table!.data;
+    const tableData = data.custom_table!;
+    const tableRows =
+      Array.isArray(tableData.data) && tableData.data.length > 0
+        ? tableData.data
+        : Array.from({ length: tableData.rows }, () =>
+            Array.from({ length: tableData.columns }, () => '')
+          );
     const wordTable = new Table({
       width: { size: 100, type: WidthType.PERCENTAGE },
       rows: tableRows.map(
@@ -421,18 +404,6 @@ async function generateDocx(filePath: string, data: CapaExportData) {
           ],
         })
       );
-    });
-  }
-
-  if (data.image_paths && data.image_paths.length > 0) {
-    children.push(new Paragraph({ text: '' }));
-    children.push(
-      new Paragraph({
-        children: [new TextRun({ text: 'Image Attachments', bold: true, size: 24, color: '1F2937' })],
-      })
-    );
-    data.image_paths.forEach((imgPath) => {
-      children.push(new Paragraph({ text: `- ${path.basename(imgPath)}` }));
     });
   }
 
