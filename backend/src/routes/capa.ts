@@ -7,8 +7,62 @@ import { createElectronicSignature } from '../utils/electronicSignature';
 import { generateCapaFiles } from '../utils/capaExport';
 import fs from 'fs';
 import path from 'path';
+import multer from 'multer';
 
 const router = express.Router();
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+    files: 10,
+  },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+      return;
+    }
+    cb(new AppError('Only image files are allowed', 400));
+  },
+});
+
+function parseJsonArray(input: any): any[] | null {
+  if (!input) return null;
+  if (Array.isArray(input)) return input;
+  if (typeof input !== 'string') return null;
+  try {
+    const parsed = JSON.parse(input);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function sanitizeFilename(name: string): string {
+  return name.replace(/[^a-zA-Z0-9._-]/g, '_');
+}
+
+async function saveCapaImages(capaId: string, files: Express.Multer.File[]): Promise<string[]> {
+  if (!files || files.length === 0) {
+    return [];
+  }
+
+  const imagesDir = path.resolve(__dirname, '../../..', 'uploads', 'capa', 'images', capaId);
+  if (!fs.existsSync(imagesDir)) {
+    fs.mkdirSync(imagesDir, { recursive: true });
+  }
+
+  const saved: string[] = [];
+  for (let i = 0; i < files.length; i += 1) {
+    const file = files[i];
+    const name = `${Date.now()}-${i}-${sanitizeFilename(file.originalname)}`;
+    const fullPath = path.join(imagesDir, name);
+    fs.writeFileSync(fullPath, file.buffer);
+    saved.push(fullPath);
+  }
+
+  return saved;
+}
 
 // Get all CAPA records
 router.get(
@@ -118,14 +172,13 @@ router.post(
   '/',
   authenticate,
   checkPermission('capa', 'create'),
+  upload.array('images', 10),
   [
     body('title').trim().notEmpty(),
     body('type').isIn(['corrective', 'preventive']),
     body('source').notEmpty(),
     body('priority').isIn(['low', 'medium', 'high', 'critical']),
     body('description').trim().notEmpty(),
-    body('approvers').optional().isArray(),
-    body('custom_fields').optional().isArray(),
   ],
   async (req, res, next) => {
     try {
@@ -144,9 +197,23 @@ router.post(
         owner_id,
         assigned_to,
         target_completion_date,
-        approvers,
-        custom_fields,
       } = req.body;
+
+      const approversRaw = parseJsonArray(req.body.approvers);
+      const customFieldsRaw = parseJsonArray(req.body.custom_fields);
+
+      const approvers = (approversRaw || [])
+        .filter((item) => typeof item === 'string')
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0);
+
+      const custom_fields = (customFieldsRaw || [])
+        .filter((item) => item && typeof item === 'object')
+        .map((item: any) => ({
+          label: typeof item.label === 'string' ? item.label.trim() : '',
+          value: typeof item.value === 'string' ? item.value : '',
+        }))
+        .filter((item) => item.label.length > 0);
 
       // Generate CAPA number
       const countResult = await pool.query('SELECT COUNT(*) as count FROM capa');
@@ -164,8 +231,8 @@ router.post(
         owner_id || null,
         assigned_to || null,
         target_completion_date || null,
-        approvers && Array.isArray(approvers) ? approvers : null,
-        custom_fields && Array.isArray(custom_fields) ? custom_fields : null,
+        approvers.length > 0 ? approvers : null,
+        custom_fields.length > 0 ? custom_fields : null,
         req.user!.id,
       ];
 
@@ -207,6 +274,9 @@ router.post(
       }
 
       const created = result.rows[0];
+      const imageFiles = (req.files as Express.Multer.File[]) || [];
+      const imagePaths = await saveCapaImages(created.id, imageFiles);
+
       const { pdfPath, docxPath } = await generateCapaFiles({
         capa_number: created.capa_number,
         title: created.title,
@@ -216,11 +286,17 @@ router.post(
         status: created.status,
         description: created.description,
         target_completion_date: created.target_completion_date,
-        approvers: created.approvers || [],
-        custom_fields: created.custom_fields || [],
+        approvers,
+        custom_fields,
+        image_paths: imagePaths,
       });
 
-      let responseData = created;
+      let responseData: any = {
+        ...created,
+        capa_pdf_path: pdfPath,
+        capa_docx_path: docxPath,
+        capa_images: imagePaths,
+      };
       try {
         const updateResult = await pool.query(
           `UPDATE capa
@@ -241,6 +317,28 @@ router.post(
           capa_pdf_path: pdfPath,
           capa_docx_path: docxPath,
         };
+      }
+
+      if (imagePaths.length > 0) {
+        try {
+          const imageUpdate = await pool.query(
+            `UPDATE capa
+             SET capa_images = $1
+             WHERE id = $2
+             RETURNING *`,
+            [imagePaths, created.id]
+          );
+          responseData = imageUpdate.rows[0];
+        } catch (dbError: any) {
+          // Backward compatibility for databases that do not have capa_images yet.
+          if (dbError?.code !== '42703') {
+            throw dbError;
+          }
+          responseData = {
+            ...responseData,
+            capa_images: imagePaths,
+          };
+        }
       }
 
       res.status(201).json({

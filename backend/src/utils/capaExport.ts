@@ -14,6 +14,7 @@ type CapaExportData = {
   target_completion_date?: string | null;
   approvers?: string[] | null;
   custom_fields?: Array<{ label: string; value: string }> | null;
+  image_paths?: string[] | null;
 };
 
 function ensureDir(dirPath: string) {
@@ -84,6 +85,14 @@ async function generatePdf(filePath: string, data: CapaExportData) {
       });
     }
 
+    if (data.image_paths && data.image_paths.length > 0) {
+      doc.moveDown();
+      doc.fontSize(12).text('Image Attachments', { underline: true });
+      data.image_paths.forEach((imgPath) => {
+        doc.font('Helvetica').fontSize(11).text(`- ${path.basename(imgPath)}`);
+      });
+    }
+
     doc.end();
     stream.on('finish', () => resolve());
     stream.on('error', reject);
@@ -150,6 +159,18 @@ async function generateDocx(filePath: string, data: CapaExportData) {
           ],
         })
       );
+    });
+  }
+
+  if (data.image_paths && data.image_paths.length > 0) {
+    paragraphs.push(new Paragraph({ text: '' }));
+    paragraphs.push(
+      new Paragraph({
+        children: [new TextRun({ text: 'Image Attachments', bold: true })],
+      })
+    );
+    data.image_paths.forEach((imgPath) => {
+      paragraphs.push(new Paragraph({ text: `- ${path.basename(imgPath)}` }));
     });
   }
 

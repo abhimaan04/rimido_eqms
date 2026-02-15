@@ -27,6 +27,7 @@ export default function CAPAManagementPage() {
     target_completion_date: '',
     approvers: [] as string[],
     custom_fields: [] as Array<{ label: string; value: string }>,
+    images: [] as File[],
   })
   const [approverInputCount, setApproverInputCount] = useState(1)
   const [customFieldCount, setCustomFieldCount] = useState(1)
@@ -61,15 +62,32 @@ export default function CAPAManagementPage() {
     e.preventDefault()
     setSubmitting(true)
     try {
-      await api.post('/capa', {
-        ...newCapa,
-        owner_id: newCapa.owner_id || null,
-        assigned_to: newCapa.assigned_to || null,
-        target_completion_date: newCapa.target_completion_date || null,
-        approvers: newCapa.approvers.filter((a) => a && a.trim().length > 0),
-        custom_fields: newCapa.custom_fields
-          .filter((f) => f.label && f.label.trim().length > 0)
-          .map((f) => ({ label: f.label.trim(), value: f.value || '' })),
+      const approvers = newCapa.approvers.filter((a) => a && a.trim().length > 0)
+      const customFields = newCapa.custom_fields
+        .filter((f) => f.label && f.label.trim().length > 0)
+        .map((f) => ({ label: f.label.trim(), value: f.value || '' }))
+
+      const formData = new FormData()
+      formData.append('title', newCapa.title)
+      formData.append('type', newCapa.type)
+      formData.append('source', newCapa.source)
+      formData.append('priority', newCapa.priority)
+      formData.append('description', newCapa.description)
+      if (newCapa.owner_id) formData.append('owner_id', newCapa.owner_id)
+      if (newCapa.assigned_to) formData.append('assigned_to', newCapa.assigned_to)
+      if (newCapa.target_completion_date) {
+        formData.append('target_completion_date', newCapa.target_completion_date)
+      }
+      formData.append('approvers', JSON.stringify(approvers))
+      formData.append('custom_fields', JSON.stringify(customFields))
+      newCapa.images.forEach((file) => {
+        formData.append('images', file)
+      })
+
+      await api.post('/capa', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
       })
       alert('CAPA created successfully!')
       setShowCreateModal(false)
@@ -84,6 +102,7 @@ export default function CAPAManagementPage() {
         target_completion_date: '',
         approvers: [],
         custom_fields: [],
+        images: [],
       })
       setApproverInputCount(1)
       setCustomFieldCount(1)
@@ -98,6 +117,28 @@ export default function CAPAManagementPage() {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  const handleImagesSelected = (files: FileList | null) => {
+    if (!files || files.length === 0) {
+      return
+    }
+    const selected = Array.from(files).filter((f) => f.type.startsWith('image/'))
+    setNewCapa((prev) => ({
+      ...prev,
+      images: [...prev.images, ...selected].slice(0, 10),
+    }))
+  }
+
+  const handleRemoveImage = (index: number) => {
+    setNewCapa((prev) => {
+      const next = [...prev.images]
+      next.splice(index, 1)
+      return {
+        ...prev,
+        images: next,
+      }
+    })
   }
 
   const handleDownload = async (capaId: string, type: 'pdf' | 'docx', capaNumber: string) => {
@@ -471,6 +512,33 @@ export default function CAPAManagementPage() {
                     Add Parameter
                   </button>
                 </div>
+              </div>
+              <div className="border border-slate-200 rounded-xl p-4 bg-slate-50">
+                <h4 className="font-semibold text-slate-900 mb-3">Images</h4>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={(e) => handleImagesSelected(e.target.files)}
+                  className="block w-full text-sm text-slate-700 file:mr-3 file:rounded-lg file:border file:border-slate-300 file:px-3 file:py-1.5 file:text-sm file:bg-white file:hover:bg-slate-50"
+                />
+                <p className="text-xs text-slate-500 mt-2">Up to 10 images, 5MB each.</p>
+                {newCapa.images.length > 0 && (
+                  <ul className="mt-3 space-y-2">
+                    {newCapa.images.map((img, idx) => (
+                      <li key={`${img.name}-${idx}`} className="flex items-center justify-between text-sm bg-white border border-slate-200 rounded-lg px-3 py-2">
+                        <span className="text-slate-700 truncate pr-3">{img.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveImage(idx)}
+                          className="px-2 py-1 border border-slate-300 rounded-lg hover:bg-slate-50 text-xs"
+                        >
+                          Remove
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
               <div className="flex gap-3 pt-4">
                 <button
