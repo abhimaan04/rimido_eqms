@@ -375,7 +375,17 @@ export default function CAPAManagementPage() {
     }
 
     try {
-      const response = await api.delete(`/capa/${capaId}/files`)
+      let response
+      try {
+        response = await api.delete(`/capa/${capaId}/files`)
+      } catch (error: any) {
+        // Fallback for environments where DELETE may be blocked/routed differently.
+        if (axios.isAxiosError(error) && error.response?.status === 404) {
+          response = await api.post(`/capa/${capaId}/files/remove`)
+        } else {
+          throw error
+        }
+      }
       const deleted = response.data?.data?.deleted_files ?? 0
       alert(`Files removed. Deleted ${deleted} file(s).`)
       loadData()
@@ -383,7 +393,11 @@ export default function CAPAManagementPage() {
       let message = 'Failed to remove CAPA files'
       if (axios.isAxiosError(error) && error.response?.data) {
         const payload = error.response.data as any
-        message = payload?.error?.message || payload?.message || message
+        if (typeof payload === 'string') {
+          message = payload
+        } else {
+          message = payload?.error?.message || payload?.message || message
+        }
       }
       alert(message)
     }
