@@ -11,6 +11,7 @@ type ApproverDecision = 'approve' | 'disapprove' | ''
 type ApproverEntry = {
   name: string
   decision: ApproverDecision
+  password: string
 }
 type CapaDetailEntry = {
   title: string
@@ -21,6 +22,7 @@ type CapaDetailEntry = {
 const emptyApprover = (): ApproverEntry => ({
   name: '',
   decision: '',
+  password: '',
 })
 const emptyDetailItem = (): CapaDetailEntry => ({
   title: '',
@@ -75,6 +77,7 @@ export default function CAPAManagementPage() {
         .map((a) => ({
           name: a.name.trim(),
           decision: a.decision,
+          password: a.password,
         }))
         .filter((a) => a.name.length > 0)
 
@@ -85,6 +88,11 @@ export default function CAPAManagementPage() {
 
       if (approvers.some((a) => a.decision !== 'approve' && a.decision !== 'disapprove')) {
         alert('Please select Approve or Disapprove for each approver.')
+        return
+      }
+
+      if (approvers.some((a) => a.password.length === 0)) {
+        alert('Password is required for each approver decision.')
         return
       }
 
@@ -170,7 +178,26 @@ export default function CAPAManagementPage() {
     })
   }
 
+  const handleApproverPasswordChange = (index: number, password: string) => {
+    setNewCapa((prev) => {
+      const next = [...prev.approvers]
+      next[index] = {
+        ...next[index],
+        password,
+      }
+      return {
+        ...prev,
+        approvers: next,
+      }
+    })
+  }
+
   const handleApproverDecisionChange = (index: number, decision: 'approve' | 'disapprove') => {
+    const approver = newCapa.approvers[index]
+    if (!approver?.password) {
+      alert('Enter password before choosing Approve or Disapprove.')
+      return
+    }
     setNewCapa((prev) => {
       const next = [...prev.approvers]
       next[index] = {
@@ -459,7 +486,7 @@ export default function CAPAManagementPage() {
             <form onSubmit={handleCreateCAPA} className="p-6 space-y-4">
               <div className="border border-slate-200 rounded-xl p-4 bg-slate-50">
                 <h4 className="font-semibold text-slate-900 mb-3">Approval Section</h4>
-                <p className="text-sm text-slate-600 mb-3">Enter approver name and choose Approve or Disapprove.</p>
+                <p className="text-sm text-slate-600 mb-3">Enter approver name, type password, then choose Approve or Disapprove.</p>
                 <div className="space-y-3">
                   {newCapa.approvers.map((approver, idx) => (
                     <div key={`approver-${idx}`} className="bg-white border border-slate-200 rounded-lg p-3">
@@ -470,26 +497,35 @@ export default function CAPAManagementPage() {
                         className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
                         placeholder="Approver name"
                       />
+                      <input
+                        type="password"
+                        value={approver.password}
+                        onChange={(e) => handleApproverPasswordChange(idx, e.target.value)}
+                        className="w-full mt-2 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                        placeholder="Enter password for approval action"
+                      />
                       <div className="mt-3 flex items-center gap-2">
                         <button
                           type="button"
                           onClick={() => handleApproverDecisionChange(idx, 'approve')}
+                          disabled={!approver.password}
                           className={`px-3 py-1.5 text-sm rounded-lg border ${
                             approver.decision === 'approve'
                               ? 'bg-green-600 text-white border-green-600'
                               : 'border-slate-300 hover:bg-slate-50'
-                          }`}
+                          } disabled:opacity-50 disabled:cursor-not-allowed`}
                         >
                           Approve
                         </button>
                         <button
                           type="button"
                           onClick={() => handleApproverDecisionChange(idx, 'disapprove')}
+                          disabled={!approver.password}
                           className={`px-3 py-1.5 text-sm rounded-lg border ${
                             approver.decision === 'disapprove'
                               ? 'bg-red-600 text-white border-red-600'
                               : 'border-slate-300 hover:bg-slate-50'
-                          }`}
+                          } disabled:opacity-50 disabled:cursor-not-allowed`}
                         >
                           Disapprove
                         </button>

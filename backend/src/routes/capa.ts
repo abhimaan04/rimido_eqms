@@ -8,6 +8,7 @@ import { generateCapaFiles } from '../utils/capaExport';
 import fs from 'fs';
 import path from 'path';
 import multer from 'multer';
+import bcrypt from 'bcryptjs';
 
 const router = express.Router();
 
@@ -48,7 +49,13 @@ type CapaDetailItem = {
   image_paths?: string[];
 };
 
-function normalizeApprovers(input: any[]): Array<{ name: string; decision: 'approve' | 'disapprove' | null }> {
+type ParsedApprover = {
+  name: string;
+  decision: 'approve' | 'disapprove' | null;
+  password?: string;
+};
+
+function normalizeApprovers(input: any[]): ParsedApprover[] {
   return (input || [])
     .map((item: any) => {
       if (typeof item === 'string') {
@@ -71,7 +78,12 @@ function normalizeApprovers(input: any[]): Array<{ name: string; decision: 'appr
           ? item.decision
           : null;
 
-      return { name, decision };
+      const password =
+        typeof item.password === 'string' && item.password.length > 0
+          ? item.password
+          : undefined;
+
+      return { name, decision, password };
     })
     .filter((item: any) => item !== null);
 }
@@ -250,7 +262,33 @@ router.post(
       const customFieldsRaw = parseJsonArray(req.body.custom_fields);
       const detailItemsRaw = parseJsonArray(req.body.detail_items);
 
-      const approvers = normalizeApprovers(approversRaw || []);
+      const parsedApprovers = normalizeApprovers(approversRaw || []);
+      const approversNeedingPassword = parsedApprovers.filter((approver) => approver.decision !== null);
+      if (approversNeedingPassword.length > 0) {
+        const userResult = await pool.query(
+          'SELECT password_hash FROM users WHERE id = $1',
+          [req.user!.id]
+        );
+        if (userResult.rows.length === 0) {
+          throw new AppError('User account not found', 404);
+        }
+
+        const passwordHash = userResult.rows[0].password_hash;
+        for (const approver of approversNeedingPassword) {
+          if (!approver.password) {
+            throw new AppError(`Password is required for approver "${approver.name}"`, 400);
+          }
+          const validPassword = await bcrypt.compare(approver.password, passwordHash);
+          if (!validPassword) {
+            throw new AppError('Invalid approval password', 400);
+          }
+        }
+      }
+
+      const approvers = parsedApprovers.map((approver) => ({
+        name: approver.name,
+        decision: approver.decision,
+      }));
 
       const custom_fields = (customFieldsRaw || [])
         .filter((item) => item && typeof item === 'object')
@@ -584,7 +622,10 @@ router.get(
           status: row.status,
           description: row.description,
           target_completion_date: row.target_completion_date,
-          approvers: normalizeApprovers(row.approvers || []),
+          approvers: normalizeApprovers(row.approvers || []).map((approver) => ({
+            name: approver.name,
+            decision: approver.decision,
+          })),
           custom_fields: row.custom_fields || [],
           image_paths: row.capa_images || [],
           detail_items: normalizeDetailItems(row.detail_items || []),
