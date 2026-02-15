@@ -4,6 +4,9 @@ import { pool } from '../database/connection';
 import { authenticate, checkPermission } from '../middleware/auth';
 import { AppError } from '../errors/AppError';
 import { createElectronicSignature } from '../utils/electronicSignature';
+import { generateCapaFiles } from '../utils/capaExport';
+import fs from 'fs';
+import path from 'path';
 
 const router = express.Router();
 
@@ -121,6 +124,8 @@ router.post(
     body('source').notEmpty(),
     body('priority').isIn(['low', 'medium', 'high', 'critical']),
     body('description').trim().notEmpty(),
+    body('approvers').optional().isArray(),
+    body('custom_fields').optional().isArray(),
   ],
   async (req, res, next) => {
     try {
@@ -139,6 +144,8 @@ router.post(
         owner_id,
         assigned_to,
         target_completion_date,
+        approvers,
+        custom_fields,
       } = req.body;
 
       // Generate CAPA number
@@ -149,8 +156,8 @@ router.post(
       const result = await pool.query(
         `INSERT INTO capa 
          (capa_number, title, type, source, source_reference_id, priority, description,
-          owner_id, assigned_to, target_completion_date, status, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'initiated', $11)
+          owner_id, assigned_to, target_completion_date, approvers, custom_fields, status, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'initiated', $13)
          RETURNING *`,
         [
           capaNumber,
@@ -163,13 +170,38 @@ router.post(
           owner_id || null,
           assigned_to || null,
           target_completion_date || null,
+          approvers && Array.isArray(approvers) ? approvers : null,
+          custom_fields && Array.isArray(custom_fields) ? custom_fields : null,
           req.user!.id,
         ]
       );
 
+      const created = result.rows[0];
+      const { pdfPath, docxPath } = await generateCapaFiles({
+        capa_number: created.capa_number,
+        title: created.title,
+        type: created.type,
+        source: created.source,
+        priority: created.priority,
+        status: created.status,
+        description: created.description,
+        target_completion_date: created.target_completion_date,
+        approvers: created.approvers || [],
+        custom_fields: created.custom_fields || [],
+      });
+
+      const updateResult = await pool.query(
+        `UPDATE capa
+         SET capa_pdf_path = $1,
+             capa_docx_path = $2
+         WHERE id = $3
+         RETURNING *`,
+        [pdfPath, docxPath, created.id]
+      );
+
       res.status(201).json({
         success: true,
-        data: result.rows[0],
+        data: updateResult.rows[0],
       });
     } catch (error) {
       next(error);
@@ -260,6 +292,41 @@ router.post(
         success: true,
         data: result.rows[0],
       });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Download CAPA files
+router.get(
+  '/:id/download',
+  authenticate,
+  checkPermission('capa', 'read'),
+  async (req, res, next) => {
+    try {
+      const { type } = req.query;
+      if (type !== 'pdf' && type !== 'docx') {
+        throw new AppError('Invalid file type requested', 400);
+      }
+
+      const result = await pool.query(
+        `SELECT capa_number, capa_pdf_path, capa_docx_path FROM capa WHERE id = $1`,
+        [req.params.id]
+      );
+      if (result.rows.length === 0) {
+        throw new AppError('CAPA not found', 404);
+      }
+
+      const row = result.rows[0];
+      const filePath = type === 'pdf' ? row.capa_pdf_path : row.capa_docx_path;
+      if (!filePath || !fs.existsSync(filePath)) {
+        throw new AppError('CAPA file not found', 404);
+      }
+
+      const filenameBase = row.capa_number || 'CAPA';
+      const filename = `${filenameBase}.${type}`;
+      res.download(path.resolve(filePath), filename);
     } catch (error) {
       next(error);
     }

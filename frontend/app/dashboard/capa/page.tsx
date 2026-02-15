@@ -24,7 +24,11 @@ export default function CAPAManagementPage() {
     owner_id: '',
     assigned_to: '',
     target_completion_date: '',
+    approvers: [] as string[],
+    custom_fields: [] as Array<{ label: string; value: string }>,
   })
+  const [approverInputCount, setApproverInputCount] = useState(1)
+  const [customFieldCount, setCustomFieldCount] = useState(1)
 
   useEffect(() => {
     const token = localStorage.getItem('token')
@@ -61,6 +65,10 @@ export default function CAPAManagementPage() {
         owner_id: newCapa.owner_id || null,
         assigned_to: newCapa.assigned_to || null,
         target_completion_date: newCapa.target_completion_date || null,
+        approvers: newCapa.approvers.filter((a) => a && a.trim().length > 0),
+        custom_fields: newCapa.custom_fields
+          .filter((f) => f.label && f.label.trim().length > 0)
+          .map((f) => ({ label: f.label.trim(), value: f.value || '' })),
       })
       alert('CAPA created successfully!')
       setShowCreateModal(false)
@@ -73,12 +81,37 @@ export default function CAPAManagementPage() {
         owner_id: '',
         assigned_to: '',
         target_completion_date: '',
+        approvers: [],
+        custom_fields: [],
       })
+      setApproverInputCount(1)
+      setCustomFieldCount(1)
       loadData()
     } catch (error: any) {
       alert(error.response?.data?.message || 'Failed to create CAPA')
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const handleDownload = async (capaId: string, type: 'pdf' | 'docx', capaNumber: string) => {
+    try {
+      const response = await api.get(`/capa/${capaId}/download?type=${type}`, {
+        responseType: 'blob',
+      })
+      const blob = new Blob([response.data], {
+        type: type === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${capaNumber}.${type}`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (error: any) {
+      alert(error.response?.data?.message || 'Failed to download file')
     }
   }
 
@@ -134,9 +167,25 @@ export default function CAPAManagementPage() {
                       <span className="font-medium text-slate-900">{c.capa_number}</span>
                       <span className="text-slate-600 text-sm block">{c.title}</span>
                     </div>
-                    <span className={`text-xs font-medium px-3 py-1 rounded-full capitalize ${c.priority === 'critical' ? 'bg-red-100 text-red-700' : c.priority === 'high' ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-700'}`}>
-                      {c.priority}
-                    </span>
+                    <div className="flex items-center gap-3">
+                      <span className={`text-xs font-medium px-3 py-1 rounded-full capitalize ${c.priority === 'critical' ? 'bg-red-100 text-red-700' : c.priority === 'high' ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-700'}`}>
+                        {c.priority}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleDownload(c.id, 'pdf', c.capa_number)}
+                        className="text-xs px-2.5 py-1 rounded-lg border border-slate-300 hover:bg-slate-50"
+                      >
+                        Download PDF
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDownload(c.id, 'docx', c.capa_number)}
+                        className="text-xs px-2.5 py-1 rounded-lg border border-slate-300 hover:bg-slate-50"
+                      >
+                        Download Word
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -175,6 +224,46 @@ export default function CAPAManagementPage() {
               </button>
             </div>
             <form onSubmit={handleCreateCAPA} className="p-6 space-y-4">
+              <div className="border border-slate-200 rounded-xl p-4 bg-slate-50">
+                <h4 className="font-semibold text-slate-900 mb-3">Approvers</h4>
+                <div className="space-y-2">
+                  {Array.from({ length: approverInputCount }).map((_, idx) => (
+                    <div key={`approver-${idx}`} className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={newCapa.approvers[idx] || ''}
+                        onChange={(e) => {
+                          const next = [...newCapa.approvers]
+                          next[idx] = e.target.value
+                          setNewCapa({ ...newCapa, approvers: next })
+                        }}
+                        className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                        placeholder="Approver name"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = [...newCapa.approvers]
+                          next.splice(idx, 1)
+                          setNewCapa({ ...newCapa, approvers: next })
+                          setApproverInputCount(Math.max(1, approverInputCount - 1))
+                        }}
+                        className="px-3 py-2 border border-slate-300 rounded-lg hover:bg-slate-50"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setApproverInputCount(approverInputCount + 1)}
+                    className="text-sm px-3 py-2 border border-dashed border-slate-300 rounded-lg hover:bg-white"
+                  >
+                    Add Approver
+                  </button>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Title *</label>
                 <input
@@ -278,6 +367,60 @@ export default function CAPAManagementPage() {
                   onChange={(e) => setNewCapa({ ...newCapa, target_completion_date: e.target.value })}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
                 />
+              </div>
+              <div className="border border-slate-200 rounded-xl p-4 bg-slate-50">
+                <h4 className="font-semibold text-slate-900 mb-3">Custom Parameters</h4>
+                <div className="space-y-2">
+                  {Array.from({ length: customFieldCount }).map((_, idx) => (
+                    <div key={`custom-${idx}`} className="grid grid-cols-2 gap-2 items-center">
+                      <input
+                        type="text"
+                        value={newCapa.custom_fields[idx]?.label || ''}
+                        onChange={(e) => {
+                          const next = [...newCapa.custom_fields]
+                          const current = next[idx] || { label: '', value: '' }
+                          next[idx] = { ...current, label: e.target.value }
+                          setNewCapa({ ...newCapa, custom_fields: next })
+                        }}
+                        className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                        placeholder="Label"
+                      />
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={newCapa.custom_fields[idx]?.value || ''}
+                          onChange={(e) => {
+                            const next = [...newCapa.custom_fields]
+                            const current = next[idx] || { label: '', value: '' }
+                            next[idx] = { ...current, value: e.target.value }
+                            setNewCapa({ ...newCapa, custom_fields: next })
+                          }}
+                          className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                          placeholder="Value"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = [...newCapa.custom_fields]
+                            next.splice(idx, 1)
+                            setNewCapa({ ...newCapa, custom_fields: next })
+                            setCustomFieldCount(Math.max(1, customFieldCount - 1))
+                          }}
+                          className="px-3 py-2 border border-slate-300 rounded-lg hover:bg-slate-50"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setCustomFieldCount(customFieldCount + 1)}
+                    className="text-sm px-3 py-2 border border-dashed border-slate-300 rounded-lg hover:bg-white"
+                  >
+                    Add Parameter
+                  </button>
+                </div>
               </div>
               <div className="flex gap-3 pt-4">
                 <button
