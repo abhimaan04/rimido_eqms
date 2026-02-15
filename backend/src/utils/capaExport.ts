@@ -27,7 +27,8 @@ function safeFilename(name: string) {
 }
 
 export async function generateCapaFiles(data: CapaExportData) {
-  const uploadsDir = path.resolve(process.cwd(), 'uploads', 'capa');
+  // Use backend root (works for both src/ and dist/ builds)
+  const uploadsDir = path.resolve(__dirname, '../../..', 'uploads', 'capa');
   ensureDir(uploadsDir);
 
   const baseName = safeFilename(data.capa_number || 'CAPA');

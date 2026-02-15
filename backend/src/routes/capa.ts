@@ -311,7 +311,7 @@ router.get(
       }
 
       const result = await pool.query(
-        `SELECT capa_number, capa_pdf_path, capa_docx_path FROM capa WHERE id = $1`,
+        `SELECT * FROM capa WHERE id = $1`,
         [req.params.id]
       );
       if (result.rows.length === 0) {
@@ -319,7 +319,33 @@ router.get(
       }
 
       const row = result.rows[0];
-      const filePath = type === 'pdf' ? row.capa_pdf_path : row.capa_docx_path;
+      let filePath = type === 'pdf' ? row.capa_pdf_path : row.capa_docx_path;
+      if (!filePath || !fs.existsSync(filePath)) {
+        const regenerated = await generateCapaFiles({
+          capa_number: row.capa_number,
+          title: row.title,
+          type: row.type,
+          source: row.source,
+          priority: row.priority,
+          status: row.status,
+          description: row.description,
+          target_completion_date: row.target_completion_date,
+          approvers: row.approvers || [],
+          custom_fields: row.custom_fields || [],
+        });
+
+        const updated = await pool.query(
+          `UPDATE capa
+           SET capa_pdf_path = $1,
+               capa_docx_path = $2
+           WHERE id = $3
+           RETURNING capa_pdf_path, capa_docx_path`,
+          [regenerated.pdfPath, regenerated.docxPath, row.id]
+        );
+        const updatedRow = updated.rows[0];
+        filePath = type === 'pdf' ? updatedRow.capa_pdf_path : updatedRow.capa_docx_path;
+      }
+
       if (!filePath || !fs.existsSync(filePath)) {
         throw new AppError('CAPA file not found', 404);
       }
