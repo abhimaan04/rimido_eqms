@@ -12,10 +12,19 @@ type CapaExportData = {
   status: string;
   description: string;
   target_completion_date?: string | null;
-  approvers?: string[] | null;
+  approvers?: Array<string | { name: string; decision?: string | null }> | null;
   custom_fields?: Array<{ label: string; value: string }> | null;
   image_paths?: string[] | null;
 };
+
+function formatApprover(approver: string | { name: string; decision?: string | null }): string {
+  if (typeof approver === 'string') {
+    return approver;
+  }
+  const name = approver?.name || '';
+  const decision = approver?.decision ? String(approver.decision).toUpperCase() : '';
+  return decision ? `${name} (${decision})` : name;
+}
 
 function ensureDir(dirPath: string) {
   if (!fs.existsSync(dirPath)) {
@@ -73,7 +82,7 @@ async function generatePdf(filePath: string, data: CapaExportData) {
     if (data.approvers && data.approvers.length > 0) {
       doc.moveDown();
       doc.fontSize(12).text('Approvers', { underline: true });
-      data.approvers.forEach((a) => doc.fontSize(11).text(`- ${a}`));
+      data.approvers.forEach((a) => doc.fontSize(11).text(`- ${formatApprover(a)}`));
     }
 
     if (data.custom_fields && data.custom_fields.length > 0) {
@@ -139,7 +148,7 @@ async function generateDocx(filePath: string, data: CapaExportData) {
       })
     );
     data.approvers.forEach((a) => {
-      paragraphs.push(new Paragraph({ text: `- ${a}` }));
+      paragraphs.push(new Paragraph({ text: `- ${formatApprover(a)}` }));
     });
   }
 

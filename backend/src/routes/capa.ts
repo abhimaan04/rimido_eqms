@@ -42,6 +42,34 @@ function sanitizeFilename(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]/g, '_');
 }
 
+function normalizeApprovers(input: any[]): Array<{ name: string; decision: 'approve' | 'disapprove' | null }> {
+  return (input || [])
+    .map((item: any) => {
+      if (typeof item === 'string') {
+        const trimmed = item.trim();
+        if (!trimmed) return null;
+        return { name: trimmed, decision: null };
+      }
+
+      if (!item || typeof item !== 'object') {
+        return null;
+      }
+
+      const name = typeof item.name === 'string' ? item.name.trim() : '';
+      if (!name) {
+        return null;
+      }
+
+      const decision =
+        item.decision === 'approve' || item.decision === 'disapprove'
+          ? item.decision
+          : null;
+
+      return { name, decision };
+    })
+    .filter((item: any) => item !== null);
+}
+
 async function saveCapaImages(capaId: string, files: Express.Multer.File[]): Promise<string[]> {
   if (!files || files.length === 0) {
     return [];
@@ -202,10 +230,7 @@ router.post(
       const approversRaw = parseJsonArray(req.body.approvers);
       const customFieldsRaw = parseJsonArray(req.body.custom_fields);
 
-      const approvers = (approversRaw || [])
-        .filter((item) => typeof item === 'string')
-        .map((item) => item.trim())
-        .filter((item) => item.length > 0);
+      const approvers = normalizeApprovers(approversRaw || []);
 
       const custom_fields = (customFieldsRaw || [])
         .filter((item) => item && typeof item === 'object')
@@ -472,8 +497,9 @@ router.get(
           status: row.status,
           description: row.description,
           target_completion_date: row.target_completion_date,
-          approvers: row.approvers || [],
+          approvers: normalizeApprovers(row.approvers || []),
           custom_fields: row.custom_fields || [],
+          image_paths: row.capa_images || [],
         });
 
         filePath = type === 'pdf' ? regenerated.pdfPath : regenerated.docxPath;

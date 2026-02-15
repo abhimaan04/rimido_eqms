@@ -2,11 +2,21 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import axios from 'axios'
 import api from '@/lib/api'
 import ModulePageLayout from '@/components/ModulePageLayout'
 import { AlertCircle, X } from 'lucide-react'
+
+type ApproverDecision = 'approve' | 'disapprove' | ''
+type ApproverEntry = {
+  name: string
+  decision: ApproverDecision
+}
+
+const emptyApprover = (): ApproverEntry => ({
+  name: '',
+  decision: '',
+})
 
 export default function CAPAManagementPage() {
   const router = useRouter()
@@ -15,22 +25,15 @@ export default function CAPAManagementPage() {
   const [loading, setLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [users, setUsers] = useState<any[]>([])
   const [newCapa, setNewCapa] = useState({
     title: '',
     type: 'corrective',
-    source: '',
+    source: 'internal_audit',
     priority: 'medium',
     description: '',
-    owner_id: '',
-    assigned_to: '',
-    target_completion_date: '',
-    approvers: [] as string[],
-    custom_fields: [] as Array<{ label: string; value: string }>,
+    approvers: [emptyApprover()] as ApproverEntry[],
     images: [] as File[],
   })
-  const [approverInputCount, setApproverInputCount] = useState(1)
-  const [customFieldCount, setCustomFieldCount] = useState(1)
 
   useEffect(() => {
     const token = localStorage.getItem('token')
@@ -43,14 +46,12 @@ export default function CAPAManagementPage() {
 
   const loadData = async () => {
     try {
-      const [userRes, capaRes, usersRes] = await Promise.all([
+      const [userRes, capaRes] = await Promise.all([
         api.get('/auth/me'),
         api.get('/capa').catch(() => ({ data: { data: [] } })),
-        api.get('/users').catch(() => ({ data: { data: [] } })),
       ])
       setUser(userRes.data.data)
       setCapaList(capaRes.data.data || [])
-      setUsers(usersRes.data.data || [])
     } catch (e) {
       console.error(e)
     } finally {
@@ -62,24 +63,31 @@ export default function CAPAManagementPage() {
     e.preventDefault()
     setSubmitting(true)
     try {
-      const approvers = newCapa.approvers.filter((a) => a && a.trim().length > 0)
-      const customFields = newCapa.custom_fields
-        .filter((f) => f.label && f.label.trim().length > 0)
-        .map((f) => ({ label: f.label.trim(), value: f.value || '' }))
+      const approvers = newCapa.approvers
+        .map((a) => ({
+          name: a.name.trim(),
+          decision: a.decision,
+        }))
+        .filter((a) => a.name.length > 0)
+
+      if (approvers.length === 0) {
+        alert('Please add at least one approver.')
+        return
+      }
+
+      if (approvers.some((a) => a.decision !== 'approve' && a.decision !== 'disapprove')) {
+        alert('Please select Approve or Disapprove for each approver.')
+        return
+      }
 
       const formData = new FormData()
-      formData.append('title', newCapa.title)
+      formData.append('title', newCapa.title.trim())
       formData.append('type', newCapa.type)
       formData.append('source', newCapa.source)
       formData.append('priority', newCapa.priority)
-      formData.append('description', newCapa.description)
-      if (newCapa.owner_id) formData.append('owner_id', newCapa.owner_id)
-      if (newCapa.assigned_to) formData.append('assigned_to', newCapa.assigned_to)
-      if (newCapa.target_completion_date) {
-        formData.append('target_completion_date', newCapa.target_completion_date)
-      }
+      formData.append('description', newCapa.description.trim())
       formData.append('approvers', JSON.stringify(approvers))
-      formData.append('custom_fields', JSON.stringify(customFields))
+      formData.append('custom_fields', JSON.stringify([]))
       newCapa.images.forEach((file) => {
         formData.append('images', file)
       })
@@ -94,18 +102,12 @@ export default function CAPAManagementPage() {
       setNewCapa({
         title: '',
         type: 'corrective',
-        source: '',
+        source: 'internal_audit',
         priority: 'medium',
         description: '',
-        owner_id: '',
-        assigned_to: '',
-        target_completion_date: '',
-        approvers: [],
-        custom_fields: [],
+        approvers: [emptyApprover()],
         images: [],
       })
-      setApproverInputCount(1)
-      setCustomFieldCount(1)
       loadData()
     } catch (error: any) {
       let message = 'Failed to create CAPA'
@@ -117,6 +119,52 @@ export default function CAPAManagementPage() {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  const handleApproverNameChange = (index: number, name: string) => {
+    setNewCapa((prev) => {
+      const next = [...prev.approvers]
+      next[index] = {
+        ...next[index],
+        name,
+      }
+      return {
+        ...prev,
+        approvers: next,
+      }
+    })
+  }
+
+  const handleApproverDecisionChange = (index: number, decision: 'approve' | 'disapprove') => {
+    setNewCapa((prev) => {
+      const next = [...prev.approvers]
+      next[index] = {
+        ...next[index],
+        decision,
+      }
+      return {
+        ...prev,
+        approvers: next,
+      }
+    })
+  }
+
+  const addApprover = () => {
+    setNewCapa((prev) => ({
+      ...prev,
+      approvers: [...prev.approvers, emptyApprover()],
+    }))
+  }
+
+  const removeApprover = (index: number) => {
+    setNewCapa((prev) => {
+      const next = [...prev.approvers]
+      next.splice(index, 1)
+      return {
+        ...prev,
+        approvers: next.length > 0 ? next : [emptyApprover()],
+      }
+    })
   }
 
   const handleImagesSelected = (files: FileList | null) => {
@@ -316,188 +364,45 @@ export default function CAPAManagementPage() {
             </div>
             <form onSubmit={handleCreateCAPA} className="p-6 space-y-4">
               <div className="border border-slate-200 rounded-xl p-4 bg-slate-50">
-                <h4 className="font-semibold text-slate-900 mb-3">Approvers</h4>
-                <div className="space-y-2">
-                  {Array.from({ length: approverInputCount }).map((_, idx) => (
-                    <div key={`approver-${idx}`} className="flex items-center gap-2">
+                <h4 className="font-semibold text-slate-900 mb-3">Approval Section</h4>
+                <p className="text-sm text-slate-600 mb-3">Enter approver name and choose Approve or Disapprove.</p>
+                <div className="space-y-3">
+                  {newCapa.approvers.map((approver, idx) => (
+                    <div key={`approver-${idx}`} className="bg-white border border-slate-200 rounded-lg p-3">
                       <input
                         type="text"
-                        value={newCapa.approvers[idx] || ''}
-                        onChange={(e) => {
-                          const next = [...newCapa.approvers]
-                          next[idx] = e.target.value
-                          setNewCapa({ ...newCapa, approvers: next })
-                        }}
-                        className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                        value={approver.name}
+                        onChange={(e) => handleApproverNameChange(idx, e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
                         placeholder="Approver name"
                       />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const next = [...newCapa.approvers]
-                          next.splice(idx, 1)
-                          setNewCapa({ ...newCapa, approvers: next })
-                          setApproverInputCount(Math.max(1, approverInputCount - 1))
-                        }}
-                        className="px-3 py-2 border border-slate-300 rounded-lg hover:bg-slate-50"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => setApproverInputCount(approverInputCount + 1)}
-                    className="text-sm px-3 py-2 border border-dashed border-slate-300 rounded-lg hover:bg-white"
-                  >
-                    Add Approver
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Title *</label>
-                <input
-                  type="text"
-                  required
-                  value={newCapa.title}
-                  onChange={(e) => setNewCapa({ ...newCapa, title: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                  placeholder="CAPA title"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Type *</label>
-                  <select
-                    required
-                    value={newCapa.type}
-                    onChange={(e) => setNewCapa({ ...newCapa, type: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                  >
-                    <option value="corrective">Corrective</option>
-                    <option value="preventive">Preventive</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Priority *</label>
-                  <select
-                    required
-                    value={newCapa.priority}
-                    onChange={(e) => setNewCapa({ ...newCapa, priority: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                  >
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                    <option value="critical">Critical</option>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Source *</label>
-                <select
-                  required
-                  value={newCapa.source}
-                  onChange={(e) => setNewCapa({ ...newCapa, source: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                >
-                  <option value="">Select source...</option>
-                  <option value="customer_complaint">Customer Complaint</option>
-                  <option value="internal_audit">Internal Audit</option>
-                  <option value="non_conformance">Non-Conformance</option>
-                  <option value="post_market">Post-Market Surveillance</option>
-                  <option value="software_defect">Software Defect</option>
-                  <option value="risk_finding">Risk Finding</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Description *</label>
-                <textarea
-                  required
-                  value={newCapa.description}
-                  onChange={(e) => setNewCapa({ ...newCapa, description: e.target.value })}
-                  rows={4}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                  placeholder="Describe the issue..."
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Owner</label>
-                  <select
-                    value={newCapa.owner_id}
-                    onChange={(e) => setNewCapa({ ...newCapa, owner_id: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                  >
-                    <option value="">Select owner...</option>
-                    {users.map((u: any) => (
-                      <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Assigned To</label>
-                  <select
-                    value={newCapa.assigned_to}
-                    onChange={(e) => setNewCapa({ ...newCapa, assigned_to: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                  >
-                    <option value="">Select assignee...</option>
-                    {users.map((u: any) => (
-                      <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Target Completion Date</label>
-                <input
-                  type="date"
-                  value={newCapa.target_completion_date}
-                  onChange={(e) => setNewCapa({ ...newCapa, target_completion_date: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                />
-              </div>
-              <div className="border border-slate-200 rounded-xl p-4 bg-slate-50">
-                <h4 className="font-semibold text-slate-900 mb-3">Custom Parameters</h4>
-                <div className="space-y-2">
-                  {Array.from({ length: customFieldCount }).map((_, idx) => (
-                    <div key={`custom-${idx}`} className="grid grid-cols-2 gap-2 items-center">
-                      <input
-                        type="text"
-                        value={newCapa.custom_fields[idx]?.label || ''}
-                        onChange={(e) => {
-                          const next = [...newCapa.custom_fields]
-                          const current = next[idx] || { label: '', value: '' }
-                          next[idx] = { ...current, label: e.target.value }
-                          setNewCapa({ ...newCapa, custom_fields: next })
-                        }}
-                        className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                        placeholder="Label"
-                      />
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={newCapa.custom_fields[idx]?.value || ''}
-                          onChange={(e) => {
-                            const next = [...newCapa.custom_fields]
-                            const current = next[idx] || { label: '', value: '' }
-                            next[idx] = { ...current, value: e.target.value }
-                            setNewCapa({ ...newCapa, custom_fields: next })
-                          }}
-                          className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                          placeholder="Value"
-                        />
+                      <div className="mt-3 flex items-center gap-2">
                         <button
                           type="button"
-                          onClick={() => {
-                            const next = [...newCapa.custom_fields]
-                            next.splice(idx, 1)
-                            setNewCapa({ ...newCapa, custom_fields: next })
-                            setCustomFieldCount(Math.max(1, customFieldCount - 1))
-                          }}
-                          className="px-3 py-2 border border-slate-300 rounded-lg hover:bg-slate-50"
+                          onClick={() => handleApproverDecisionChange(idx, 'approve')}
+                          className={`px-3 py-1.5 text-sm rounded-lg border ${
+                            approver.decision === 'approve'
+                              ? 'bg-green-600 text-white border-green-600'
+                              : 'border-slate-300 hover:bg-slate-50'
+                          }`}
+                        >
+                          Approve
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleApproverDecisionChange(idx, 'disapprove')}
+                          className={`px-3 py-1.5 text-sm rounded-lg border ${
+                            approver.decision === 'disapprove'
+                              ? 'bg-red-600 text-white border-red-600'
+                              : 'border-slate-300 hover:bg-slate-50'
+                          }`}
+                        >
+                          Disapprove
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeApprover(idx)}
+                          className="ml-auto px-2.5 py-1.5 border border-slate-300 rounded-lg hover:bg-slate-50 text-xs"
                         >
                           Remove
                         </button>
@@ -506,39 +411,65 @@ export default function CAPAManagementPage() {
                   ))}
                   <button
                     type="button"
-                    onClick={() => setCustomFieldCount(customFieldCount + 1)}
+                    onClick={addApprover}
                     className="text-sm px-3 py-2 border border-dashed border-slate-300 rounded-lg hover:bg-white"
                   >
-                    Add Parameter
+                    Add Approver
                   </button>
                 </div>
               </div>
-              <div className="border border-slate-200 rounded-xl p-4 bg-slate-50">
-                <h4 className="font-semibold text-slate-900 mb-3">Images</h4>
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={(e) => handleImagesSelected(e.target.files)}
-                  className="block w-full text-sm text-slate-700 file:mr-3 file:rounded-lg file:border file:border-slate-300 file:px-3 file:py-1.5 file:text-sm file:bg-white file:hover:bg-slate-50"
-                />
-                <p className="text-xs text-slate-500 mt-2">Up to 10 images, 5MB each.</p>
-                {newCapa.images.length > 0 && (
-                  <ul className="mt-3 space-y-2">
-                    {newCapa.images.map((img, idx) => (
-                      <li key={`${img.name}-${idx}`} className="flex items-center justify-between text-sm bg-white border border-slate-200 rounded-lg px-3 py-2">
-                        <span className="text-slate-700 truncate pr-3">{img.name}</span>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveImage(idx)}
-                          className="px-2 py-1 border border-slate-300 rounded-lg hover:bg-slate-50 text-xs"
-                        >
-                          Remove
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+
+              <div className="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-4">
+                <h4 className="font-semibold text-slate-900">CAPA Details</h4>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Title *</label>
+                  <input
+                    type="text"
+                    required
+                    value={newCapa.title}
+                    onChange={(e) => setNewCapa({ ...newCapa, title: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                    placeholder="CAPA title"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Description *</label>
+                  <textarea
+                    required
+                    value={newCapa.description}
+                    onChange={(e) => setNewCapa({ ...newCapa, description: e.target.value })}
+                    rows={4}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                    placeholder="Describe the CAPA..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Images</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={(e) => handleImagesSelected(e.target.files)}
+                    className="block w-full text-sm text-slate-700 file:mr-3 file:rounded-lg file:border file:border-slate-300 file:px-3 file:py-1.5 file:text-sm file:bg-white file:hover:bg-slate-50"
+                  />
+                  <p className="text-xs text-slate-500 mt-2">Optional. Up to 10 images, 5MB each.</p>
+                  {newCapa.images.length > 0 && (
+                    <ul className="mt-3 space-y-2">
+                      {newCapa.images.map((img, idx) => (
+                        <li key={`${img.name}-${idx}`} className="flex items-center justify-between text-sm bg-white border border-slate-200 rounded-lg px-3 py-2">
+                          <span className="text-slate-700 truncate pr-3">{img.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveImage(idx)}
+                            className="px-2 py-1 border border-slate-300 rounded-lg hover:bg-slate-50 text-xs"
+                          >
+                            Remove
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </div>
               <div className="flex gap-3 pt-4">
                 <button
