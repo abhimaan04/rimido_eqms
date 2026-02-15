@@ -85,6 +85,18 @@ export async function initializeDatabase(): Promise<void> {
         console.log('✅ Database schema initialized');
       }
     }
+
+    // Lightweight migration: add missing CAPA columns used by exports and UI
+    await pool.query(`
+      ALTER TABLE capa
+        ADD COLUMN IF NOT EXISTS approvers JSONB,
+        ADD COLUMN IF NOT EXISTS custom_fields JSONB,
+        ADD COLUMN IF NOT EXISTS detail_items JSONB,
+        ADD COLUMN IF NOT EXISTS custom_table JSONB,
+        ADD COLUMN IF NOT EXISTS capa_images JSONB,
+        ADD COLUMN IF NOT EXISTS capa_pdf_path TEXT,
+        ADD COLUMN IF NOT EXISTS capa_docx_path TEXT;
+    `);
   } catch (error) {
     console.error('❌ Database initialization error:', error);
     throw error;
