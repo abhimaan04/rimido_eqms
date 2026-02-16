@@ -938,10 +938,6 @@ router.get(
   async (req, res, next) => {
     try {
       const { type } = req.query;
-      const regenerate =
-        req.query.regenerate === '1' ||
-        req.query.regenerate === 'true' ||
-        req.query.regenerate === true;
       if (type !== 'pdf' && type !== 'docx') {
         throw new AppError('Invalid file type requested', 400);
       }
@@ -974,38 +970,28 @@ router.get(
         detail_items: normalizeDetailItems(row.detail_items || []),
       };
 
-      let pdfPath = typeof row.capa_pdf_path === 'string' ? row.capa_pdf_path : '';
-      let docxPath = typeof row.capa_docx_path === 'string' ? row.capa_docx_path : '';
+      // Always regenerate exports from current CAPA data so files
+      // reflect the latest form content and stale files are overwritten.
+      const regenerated = await generateCapaFiles(exportData);
+      let pdfPath = regenerated.pdfPath;
+      let docxPath = regenerated.docxPath;
 
-      const needsRegeneration =
-        regenerate ||
-        !pdfPath ||
-        !docxPath ||
-        (type === 'pdf' && (!pdfPath || !fs.existsSync(pdfPath))) ||
-        (type === 'docx' && (!docxPath || !fs.existsSync(docxPath)));
-
-      if (needsRegeneration) {
-        const regenerated = await generateCapaFiles(exportData);
-        pdfPath = regenerated.pdfPath;
-        docxPath = regenerated.docxPath;
-
-        try {
-          const updated = await pool.query(
-            `UPDATE capa
-             SET capa_pdf_path = $1,
-                 capa_docx_path = $2
-             WHERE id = $3
-             RETURNING capa_pdf_path, capa_docx_path`,
-            [pdfPath, docxPath, row.id]
-          );
-          const updatedRow = updated.rows[0];
-          pdfPath = updatedRow.capa_pdf_path || pdfPath;
-          docxPath = updatedRow.capa_docx_path || docxPath;
-        } catch (dbError: any) {
-          // Backward compatibility for databases missing export path columns.
-          if (dbError?.code !== '42703') {
-            throw dbError;
-          }
+      try {
+        const updated = await pool.query(
+          `UPDATE capa
+           SET capa_pdf_path = $1,
+               capa_docx_path = $2
+           WHERE id = $3
+           RETURNING capa_pdf_path, capa_docx_path`,
+          [pdfPath, docxPath, row.id]
+        );
+        const updatedRow = updated.rows[0];
+        pdfPath = updatedRow.capa_pdf_path || pdfPath;
+        docxPath = updatedRow.capa_docx_path || docxPath;
+      } catch (dbError: any) {
+        // Backward compatibility for databases missing export path columns.
+        if (dbError?.code !== '42703') {
+          throw dbError;
         }
       }
 
