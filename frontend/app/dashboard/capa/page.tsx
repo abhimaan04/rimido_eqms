@@ -481,7 +481,7 @@ export default function CAPAManagementPage() {
       subtitle="Corrective and Preventive Actions — Remidio devices, processes, and quality system"
       imageUrl="https://images.unsplash.com/photo-1450101499163-c8848c66ca85?w=1200&q=80"
       imageAlt="Quality and improvement"
-      newButtonLabel="New CAPA"
+      newButtonLabel="Create CAPA"
       newButtonOnClick={() => setShowCreateModal(true)}
       accentColor="red"
     >
@@ -588,7 +588,7 @@ export default function CAPAManagementPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
-              <h3 className="text-xl font-semibold text-slate-900">Create New CAPA</h3>
+              <h3 className="text-xl font-semibold text-slate-900">Create CAPA</h3>
               <button
                 onClick={() => setShowCreateModal(false)}
                 className="text-slate-400 hover:text-slate-600"

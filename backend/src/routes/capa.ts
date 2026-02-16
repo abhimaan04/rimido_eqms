@@ -71,8 +71,16 @@ type ParsedApprover = {
   password?: string;
 };
 
-function normalizeApprovers(input: any[]): ParsedApprover[] {
-  return (input || [])
+function normalizeApprovers(input: any): ParsedApprover[] {
+  let source = input;
+  if (typeof source === 'string') {
+    try {
+      source = JSON.parse(source);
+    } catch {
+      source = [];
+    }
+  }
+  return (source || [])
     .map((item: any) => {
       if (typeof item === 'string') {
         const trimmed = item.trim();
@@ -118,19 +126,27 @@ function normalizeDetailItems(input: any[]): CapaDetailItem[] {
 }
 
 function normalizeCustomTable(input: any): CapaCustomTable | null {
-  if (!input || typeof input !== 'object') {
+  let source = input;
+  if (typeof source === 'string') {
+    try {
+      source = JSON.parse(source);
+    } catch {
+      return null;
+    }
+  }
+  if (!source || typeof source !== 'object') {
     return null;
   }
 
-  const rowsRaw = Number((input as any).rows);
-  const columnsRaw = Number((input as any).columns);
+  const rowsRaw = Number((source as any).rows);
+  const columnsRaw = Number((source as any).columns);
   if (!Number.isFinite(rowsRaw) || !Number.isFinite(columnsRaw)) {
     return null;
   }
 
   const rows = Math.min(20, Math.max(1, Math.floor(rowsRaw)));
   const columns = Math.min(12, Math.max(1, Math.floor(columnsRaw)));
-  const sourceData = Array.isArray((input as any).data) ? (input as any).data : [];
+  const sourceData = Array.isArray((source as any).data) ? (source as any).data : [];
 
   const data: string[][] = [];
   for (let r = 0; r < rows; r += 1) {

@@ -131,32 +131,38 @@ async function generatePdf(filePath: string, data: CapaExportData) {
 
     drawSectionTitle('CAPA Summary');
     drawKeyValueRow('Title', data.title, 0);
-    ensureSpace(70);
+    const summaryDescription = data.description || '-';
+    const summaryTextWidth = contentWidth - 16;
+    const summaryTextHeight = doc.heightOfString(summaryDescription, { width: summaryTextWidth });
+    const summaryBoxHeight = Math.max(48, summaryTextHeight + 10);
+    ensureSpace(summaryBoxHeight + 28);
     doc.font('Helvetica-Bold').fontSize(10).fillColor('#374151').text('Description', margin + 8, doc.y);
-    doc.save().rect(margin, doc.y + 14, contentWidth, 48).strokeColor('#d1d5db').stroke().restore();
-    doc.font('Helvetica').fontSize(10).fillColor('#111827').text(data.description || '-', margin + 8, doc.y + 20, {
-      width: contentWidth - 16,
-      height: 40,
-      ellipsis: true,
+    doc.save().rect(margin, doc.y + 14, contentWidth, summaryBoxHeight).strokeColor('#d1d5db').stroke().restore();
+    doc.font('Helvetica').fontSize(10).fillColor('#111827').text(summaryDescription, margin + 8, doc.y + 20, {
+      width: summaryTextWidth,
     });
-    doc.y += 70;
+    doc.y += summaryBoxHeight + 22;
 
     if (data.detail_items && data.detail_items.length > 0) {
       drawSectionTitle('CAPA Details');
       data.detail_items.forEach((item, index) => {
-        ensureSpace(88);
-        doc.save().rect(margin, doc.y - 2, contentWidth, 82).strokeColor('#d1d5db').stroke().restore();
+        const detailTitle = item.title || '-';
+        const detailDescription = item.description || '-';
+        const detailTextWidth = contentWidth - 16;
+        const detailTextHeight = doc.heightOfString(detailDescription, { width: detailTextWidth });
+        const detailBoxHeight = Math.max(44, detailTextHeight + 10);
+        const detailContainerHeight = detailBoxHeight + 34;
+        ensureSpace(detailContainerHeight + 6);
+        doc.save().rect(margin, doc.y - 2, contentWidth, detailContainerHeight).strokeColor('#d1d5db').stroke().restore();
         doc
           .font('Helvetica-Bold')
           .fontSize(10)
           .fillColor('#111827')
-          .text(`Detail ${index + 1}: ${item.title || '-'}`, margin + 8, doc.y + 6);
-        doc.font('Helvetica').fontSize(10).fillColor('#111827').text(item.description || '-', margin + 8, doc.y + 24, {
-          width: contentWidth - 16,
-          height: 44,
-          ellipsis: true,
+          .text(`Detail ${index + 1}: ${detailTitle}`, margin + 8, doc.y + 6);
+        doc.font('Helvetica').fontSize(10).fillColor('#111827').text(detailDescription, margin + 8, doc.y + 24, {
+          width: detailTextWidth,
         });
-        doc.y += 82;
+        doc.y += detailContainerHeight;
         if (item.image_paths && item.image_paths.length > 0) {
           item.image_paths.forEach((imgPath) => {
             if (!fs.existsSync(imgPath)) {
