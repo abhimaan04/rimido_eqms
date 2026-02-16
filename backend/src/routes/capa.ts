@@ -481,6 +481,10 @@ router.post(
       const count = parseInt(countResult.rows[0].count) + 1;
       const capaNumber = `CAPA-${String(count).padStart(5, '0')}`;
 
+      const approversJson = approvers.length > 0 ? JSON.stringify(approvers) : null;
+      const customFieldsJson = custom_fields.length > 0 ? JSON.stringify(custom_fields) : null;
+      const customTableJson = custom_table ? JSON.stringify(custom_table) : null;
+
       const modernInsertValues = [
         capaNumber,
         primaryTitle,
@@ -492,9 +496,9 @@ router.post(
         owner_id || null,
         assigned_to || null,
         target_completion_date || null,
-        approvers.length > 0 ? approvers : null,
-        custom_fields.length > 0 ? custom_fields : null,
-        custom_table,
+        approversJson,
+        customFieldsJson,
+        customTableJson,
         req.user!.id,
       ];
 
@@ -504,7 +508,23 @@ router.post(
           `INSERT INTO capa 
            (capa_number, title, type, source, source_reference_id, priority, description,
             owner_id, assigned_to, target_completion_date, approvers, custom_fields, custom_table, status, created_by)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'initiated', $14)
+           VALUES (
+             $1,  -- capa_number
+             $2,  -- title
+             $3,  -- type
+             $4,  -- source
+             $5,  -- source_reference_id
+             $6,  -- priority
+             $7,  -- description
+             $8,  -- owner_id
+             $9,  -- assigned_to
+             $10, -- target_completion_date
+             $11::jsonb, -- approvers
+             $12::jsonb, -- custom_fields
+             $13::jsonb, -- custom_table
+             'initiated',
+             $14  -- created_by
+           )
            RETURNING *`,
           modernInsertValues
         );
@@ -615,10 +635,10 @@ router.post(
         try {
           const detailsUpdate = await pool.query(
             `UPDATE capa
-             SET detail_items = $1
+             SET detail_items = $1::jsonb
              WHERE id = $2
              RETURNING *`,
-            [detailItemsWithImages, created.id]
+            [JSON.stringify(detailItemsWithImages), created.id]
           );
           responseData = detailsUpdate.rows[0];
         } catch (dbError: any) {
@@ -637,10 +657,10 @@ router.post(
         try {
           const tableUpdate = await pool.query(
             `UPDATE capa
-             SET custom_table = $1
+             SET custom_table = $1::jsonb
              WHERE id = $2
              RETURNING *`,
-            [custom_table, created.id]
+            [JSON.stringify(custom_table), created.id]
           );
           responseData = tableUpdate.rows[0];
         } catch (dbError: any) {
@@ -659,10 +679,10 @@ router.post(
         try {
           const imageUpdate = await pool.query(
             `UPDATE capa
-             SET capa_images = $1
+             SET capa_images = $1::jsonb
              WHERE id = $2
              RETURNING *`,
-            [imagePaths, created.id]
+            [JSON.stringify(imagePaths), created.id]
           );
           responseData = imageUpdate.rows[0];
         } catch (dbError: any) {
