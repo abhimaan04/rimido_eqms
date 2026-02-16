@@ -955,7 +955,7 @@ router.get(
       }
 
       const row = result.rows[0];
-      const regenerated = await generateCapaFiles({
+      const exportData = {
         capa_number: row.capa_number,
         title: row.title,
         type: row.type,
@@ -972,26 +972,44 @@ router.get(
         custom_table: normalizeCustomTable(row.custom_table || null),
         image_paths: row.capa_images || [],
         detail_items: normalizeDetailItems(row.detail_items || []),
-      });
+      };
 
-      let filePath = type === 'pdf' ? regenerated.pdfPath : regenerated.docxPath;
-      try {
-        const updated = await pool.query(
-          `UPDATE capa
-           SET capa_pdf_path = $1,
-               capa_docx_path = $2
-           WHERE id = $3
-           RETURNING capa_pdf_path, capa_docx_path`,
-          [regenerated.pdfPath, regenerated.docxPath, row.id]
-        );
-        const updatedRow = updated.rows[0];
-        filePath = type === 'pdf' ? updatedRow.capa_pdf_path : updatedRow.capa_docx_path;
-      } catch (dbError: any) {
-        // Backward compatibility for databases missing export path columns.
-        if (dbError?.code !== '42703') {
-          throw dbError;
+      let pdfPath = typeof row.capa_pdf_path === 'string' ? row.capa_pdf_path : '';
+      let docxPath = typeof row.capa_docx_path === 'string' ? row.capa_docx_path : '';
+
+      const needsRegeneration =
+        regenerate ||
+        !pdfPath ||
+        !docxPath ||
+        (type === 'pdf' && (!pdfPath || !fs.existsSync(pdfPath))) ||
+        (type === 'docx' && (!docxPath || !fs.existsSync(docxPath)));
+
+      if (needsRegeneration) {
+        const regenerated = await generateCapaFiles(exportData);
+        pdfPath = regenerated.pdfPath;
+        docxPath = regenerated.docxPath;
+
+        try {
+          const updated = await pool.query(
+            `UPDATE capa
+             SET capa_pdf_path = $1,
+                 capa_docx_path = $2
+             WHERE id = $3
+             RETURNING capa_pdf_path, capa_docx_path`,
+            [pdfPath, docxPath, row.id]
+          );
+          const updatedRow = updated.rows[0];
+          pdfPath = updatedRow.capa_pdf_path || pdfPath;
+          docxPath = updatedRow.capa_docx_path || docxPath;
+        } catch (dbError: any) {
+          // Backward compatibility for databases missing export path columns.
+          if (dbError?.code !== '42703') {
+            throw dbError;
+          }
         }
       }
+
+      const filePath = type === 'pdf' ? pdfPath : docxPath;
 
       if (!filePath || !fs.existsSync(filePath)) {
         throw new AppError('CAPA file not found', 404);

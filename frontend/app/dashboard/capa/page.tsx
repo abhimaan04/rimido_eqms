@@ -378,7 +378,7 @@ export default function CAPAManagementPage() {
 
   const handleDownload = async (capaId: string, type: 'pdf' | 'docx', capaNumber: string) => {
     try {
-      const response = await api.get(`/capa/${capaId}/download?type=${type}&regenerate=1`, {
+      const response = await api.get(`/capa/${capaId}/download?type=${type}`, {
         responseType: 'blob',
       })
       const blob = new Blob([response.data], {
@@ -411,7 +411,7 @@ export default function CAPAManagementPage() {
 
   const handleViewPdf = async (capaId: string) => {
     try {
-      const response = await api.get(`/capa/${capaId}/download?type=pdf&regenerate=1`, {
+      const response = await api.get(`/capa/${capaId}/download?type=pdf`, {
         responseType: 'blob',
       })
       const blob = new Blob([response.data], { type: 'application/pdf' })

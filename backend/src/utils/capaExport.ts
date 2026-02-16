@@ -131,6 +131,17 @@ async function generatePdf(filePath: string, data: CapaExportData) {
 
     drawSectionTitle('CAPA Summary');
     drawKeyValueRow('Title', data.title, 0);
+    const summaryMeta: Array<[string, string]> = [];
+    if (data.type) summaryMeta.push(['Type', data.type]);
+    if (data.source) summaryMeta.push(['Source', data.source]);
+    if (data.priority) summaryMeta.push(['Priority', data.priority]);
+    if (data.status) summaryMeta.push(['Status', data.status]);
+    if (data.target_completion_date) {
+      summaryMeta.push(['Target completion date', String(data.target_completion_date)]);
+    }
+    summaryMeta.forEach(([label, value], index) => {
+      drawKeyValueRow(label, value, index + 1);
+    });
     const summaryDescription = data.description || '-';
     const summaryTextWidth = contentWidth - 16;
     const summaryTextHeight = doc.heightOfString(summaryDescription, { width: summaryTextWidth });
@@ -315,6 +326,58 @@ async function generateDocx(filePath: string, data: CapaExportData) {
       children: [new TextRun({ text: 'Description: ', bold: true }), new TextRun(data.description || '-')],
     })
   );
+
+  const metaPairs: Array<{ label: string; value: string }> = [];
+  if (data.type) metaPairs.push({ label: 'Type', value: data.type });
+  if (data.source) metaPairs.push({ label: 'Source', value: data.source });
+  if (data.priority) metaPairs.push({ label: 'Priority', value: data.priority });
+  if (data.status) metaPairs.push({ label: 'Status', value: data.status });
+  if (data.target_completion_date) {
+    metaPairs.push({ label: 'Target completion date', value: String(data.target_completion_date) });
+  }
+
+  if (metaPairs.length > 0) {
+    const metaTable = new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: [
+        new TableRow({
+          children: [
+            new TableCell({
+              borders: border,
+              shading: { fill: 'E5E7EB' },
+              children: [new Paragraph({ children: [new TextRun({ text: 'Field', bold: true })] })],
+            }),
+            new TableCell({
+              borders: border,
+              shading: { fill: 'E5E7EB' },
+              children: [new Paragraph({ children: [new TextRun({ text: 'Value', bold: true })] })],
+            }),
+          ],
+        }),
+        ...metaPairs.map(
+          (pair) =>
+            new TableRow({
+              children: [
+                new TableCell({
+                  borders: border,
+                  children: [
+                    new Paragraph({
+                      children: [new TextRun({ text: pair.label, bold: true })],
+                    }),
+                  ],
+                }),
+                new TableCell({
+                  borders: border,
+                  children: [new Paragraph(pair.value || '-')],
+                }),
+              ],
+            })
+        ),
+      ],
+    });
+    children.push(new Paragraph({ text: '' }));
+    children.push(metaTable);
+  }
 
   if (data.detail_items && data.detail_items.length > 0) {
     children.push(new Paragraph({ text: '' }));
