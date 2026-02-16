@@ -73,12 +73,12 @@ export async function generateCapaFiles(data: CapaExportData) {
 
 async function generatePdf(filePath: string, data: CapaExportData) {
   await new Promise<void>((resolve, reject) => {
-    const doc = new PDFDocument({ margin: 44 });
+    const doc = new PDFDocument({ margin: 50, size: 'A4' });
     const stream = fs.createWriteStream(filePath);
     doc.pipe(stream);
 
     const pageWidth = doc.page.width;
-    const margin = 44;
+    const margin = 50;
     const contentWidth = pageWidth - margin * 2;
     const pageBottom = () => doc.page.height - doc.page.margins.bottom;
 
@@ -90,36 +90,43 @@ async function generatePdf(filePath: string, data: CapaExportData) {
     };
 
     const drawSectionTitle = (title: string) => {
-      ensureSpace(28);
-      doc.font('Helvetica-Bold').fontSize(13).fillColor('#111827').text(title, { align: 'left' });
-      doc.moveTo(margin, doc.y + 3).lineTo(margin + contentWidth, doc.y + 3).strokeColor('#e5e7eb').stroke();
-      doc.moveDown(0.6);
+      ensureSpace(35);
+      doc.moveDown(0.5);
+      doc.font('Helvetica-Bold').fontSize(14).fillColor('#1F2937').text(title, { align: 'left' });
+      doc.moveTo(margin, doc.y + 4).lineTo(margin + contentWidth, doc.y + 4).strokeColor('#3B82F6').lineWidth(2).stroke();
+      doc.moveDown(0.8);
       doc.fillColor('#111827');
     };
 
     const drawKeyValueRow = (label: string, value: string, index: number) => {
-      ensureSpace(24);
+      ensureSpace(26);
       const rowY = doc.y;
       if (index % 2 === 0) {
-        doc.save().rect(margin, rowY - 2, contentWidth, 22).fill('#f8fafc').restore();
+        doc.save().rect(margin, rowY - 2, contentWidth, 24).fill('#F9FAFB').restore();
       }
-      doc.font('Helvetica-Bold').fontSize(10).fillColor('#374151').text(label, margin + 8, rowY, { width: 180 });
-      doc.font('Helvetica').fontSize(10).fillColor('#111827').text(value || '-', margin + 190, rowY, {
-        width: contentWidth - 198,
+      doc.font('Helvetica-Bold').fontSize(10).fillColor('#374151').text(label, margin + 10, rowY, { width: 200 });
+      doc.font('Helvetica').fontSize(10).fillColor('#111827').text(value || '-', margin + 220, rowY, {
+        width: contentWidth - 230,
       });
-      doc.y = rowY + 20;
+      doc.y = rowY + 22;
     };
 
-    doc.save().rect(margin, margin, contentWidth, 64).fill('#111827').restore();
-    doc.font('Helvetica-Bold').fontSize(20).fillColor('#ffffff').text('CAPA Report', margin + 16, margin + 16);
+    // Header with improved design
+    doc.save().rect(margin, margin, contentWidth, 80).fill('#1E40AF').restore();
+    doc.font('Helvetica-Bold').fontSize(24).fillColor('#FFFFFF').text('CAPA REPORT', margin + 20, margin + 20);
+    doc
+      .font('Helvetica')
+      .fontSize(11)
+      .fillColor('#E0E7FF')
+      .text(`CAPA Number: ${data.capa_number || 'N/A'}`, margin + 20, margin + 50);
     doc
       .font('Helvetica')
       .fontSize(10)
-      .fillColor('#e5e7eb')
-      .text(`Generated ${new Date().toLocaleString()}`, margin + 16, margin + 40);
-    doc.moveTo(margin, margin + 78).lineTo(margin + contentWidth, margin + 78).strokeColor('#d1d5db').stroke();
+      .fillColor('#C7D2FE')
+      .text(`Generated: ${new Date().toLocaleString()}`, margin + 20, margin + 65);
+    doc.moveTo(margin, margin + 95).lineTo(margin + contentWidth, margin + 95).strokeColor('#3B82F6').lineWidth(1).stroke();
     doc.fillColor('#111827');
-    doc.y = margin + 92;
+    doc.y = margin + 110;
 
     if (data.approvers && data.approvers.length > 0) {
       drawSectionTitle('Approval');
@@ -132,61 +139,96 @@ async function generatePdf(filePath: string, data: CapaExportData) {
     drawSectionTitle('CAPA Summary');
     drawKeyValueRow('Title', data.title, 0);
     const summaryDescription = data.description || '-';
-    const summaryTextWidth = contentWidth - 16;
+    const summaryTextWidth = contentWidth - 20;
     const summaryTextHeight = doc.heightOfString(summaryDescription, { width: summaryTextWidth });
-    const summaryBoxHeight = Math.max(48, summaryTextHeight + 10);
-    ensureSpace(summaryBoxHeight + 28);
-    doc.font('Helvetica-Bold').fontSize(10).fillColor('#374151').text('Description', margin + 8, doc.y);
-    doc.save().rect(margin, doc.y + 14, contentWidth, summaryBoxHeight).strokeColor('#d1d5db').stroke().restore();
-    doc.font('Helvetica').fontSize(10).fillColor('#111827').text(summaryDescription, margin + 8, doc.y + 20, {
+    const summaryBoxHeight = Math.max(60, summaryTextHeight + 20);
+    ensureSpace(summaryBoxHeight + 35);
+    doc.font('Helvetica-Bold').fontSize(11).fillColor('#374151').text('Description', margin + 10, doc.y);
+    doc.save()
+      .rect(margin, doc.y + 16, contentWidth, summaryBoxHeight)
+      .fill('#FFFFFF')
+      .strokeColor('#E5E7EB')
+      .lineWidth(1)
+      .stroke()
+      .restore();
+    doc.font('Helvetica').fontSize(10).fillColor('#111827').text(summaryDescription, margin + 12, doc.y + 22, {
       width: summaryTextWidth,
+      lineGap: 2,
     });
-    doc.y += summaryBoxHeight + 22;
+    doc.y += summaryBoxHeight + 28;
 
     if (data.detail_items && data.detail_items.length > 0) {
       drawSectionTitle('CAPA Details');
       data.detail_items.forEach((item, index) => {
         const detailTitle = item.title || '-';
         const detailDescription = item.description || '-';
-        const detailTextWidth = contentWidth - 16;
+        const detailTextWidth = contentWidth - 20;
         const detailTextHeight = doc.heightOfString(detailDescription, { width: detailTextWidth });
-        const detailBoxHeight = Math.max(44, detailTextHeight + 10);
-        const detailContainerHeight = detailBoxHeight + 34;
-        ensureSpace(detailContainerHeight + 6);
-        doc.save().rect(margin, doc.y - 2, contentWidth, detailContainerHeight).strokeColor('#d1d5db').stroke().restore();
-        doc
-          .font('Helvetica-Bold')
-          .fontSize(10)
-          .fillColor('#111827')
-          .text(`Detail ${index + 1}: ${detailTitle}`, margin + 8, doc.y + 6);
-        doc.font('Helvetica').fontSize(10).fillColor('#111827').text(detailDescription, margin + 8, doc.y + 24, {
+        const detailBoxHeight = Math.max(50, detailTextHeight + 15);
+        const detailContainerHeight = detailBoxHeight + 40;
+        ensureSpace(detailContainerHeight + 10);
+        
+        // Detail box with improved styling
+        doc.save()
+          .rect(margin, doc.y - 2, contentWidth, detailContainerHeight)
+          .fill('#FAFBFC')
+          .strokeColor('#D1D5DB')
+          .lineWidth(1)
+          .stroke()
+          .restore();
+        
+        doc.font('Helvetica-Bold').fontSize(12).fillColor('#1E40AF').text(`Detail ${index + 1}: ${detailTitle}`, margin + 10, doc.y + 8);
+        doc.font('Helvetica').fontSize(10).fillColor('#111827').text(detailDescription, margin + 10, doc.y + 26, {
           width: detailTextWidth,
+          lineGap: 2,
         });
-        doc.y += detailContainerHeight;
+        doc.y += detailContainerHeight - 8;
+        
+        // Handle images with better layout
         if (item.image_paths && item.image_paths.length > 0) {
-          item.image_paths.forEach((imgPath) => {
-            if (!fs.existsSync(imgPath)) {
-              ensureSpace(16);
+          item.image_paths.forEach((imgPath, imgIndex) => {
+            const resolvedPath = path.isAbsolute(imgPath) ? imgPath : path.resolve(__dirname, '../../..', imgPath);
+            
+            if (!fs.existsSync(resolvedPath)) {
+              ensureSpace(20);
               doc
                 .font('Helvetica-Oblique')
                 .fontSize(9)
-                .fillColor('#6b7280')
-                .text(`Attachment missing: ${path.basename(imgPath)}`, { indent: 10 });
+                .fillColor('#9CA3AF')
+                .text(`Image ${imgIndex + 1} missing: ${path.basename(imgPath)}`, margin + 10);
+              doc.y += 16;
               return;
             }
 
-            ensureSpace(220);
-            doc.font('Helvetica-Oblique').fontSize(9).fillColor('#6b7280').text(`Image: ${path.basename(imgPath)}`, {
-              indent: 10,
-            });
-            const imageY = doc.y + 6;
-            const imageWidth = contentWidth - 16;
-            const imageMaxHeight = 180;
-            doc.image(imgPath, margin + 8, imageY, { fit: [imageWidth, imageMaxHeight] });
-            doc.y = imageY + imageMaxHeight + 6;
+            try {
+              ensureSpace(250);
+              doc.font('Helvetica-Oblique').fontSize(9).fillColor('#6B7280').text(`Image ${imgIndex + 1}: ${path.basename(imgPath)}`, margin + 10);
+              const imageY = doc.y + 8;
+              const imageWidth = contentWidth - 20;
+              const imageMaxHeight = 200;
+              
+              // Store Y position before image
+              const beforeImageY = doc.y;
+              doc.image(resolvedPath, margin + 10, imageY, { 
+                fit: [imageWidth, imageMaxHeight],
+                align: 'center',
+              });
+              
+              // Calculate approximate height (PDFKit doesn't return image dimensions)
+              // Use max height as safe estimate, actual will be less if image is smaller
+              doc.y = imageY + imageMaxHeight + 12;
+            } catch (imgError) {
+              ensureSpace(20);
+              doc
+                .font('Helvetica-Oblique')
+                .fontSize(9)
+                .fillColor('#EF4444')
+                .text(`Error loading image ${imgIndex + 1}: ${path.basename(imgPath)}`, margin + 10);
+              doc.y += 16;
+            }
           });
         }
-        doc.moveDown(0.6);
+        doc.moveDown(0.8);
       });
     }
 
@@ -256,15 +298,53 @@ async function generateDocx(filePath: string, data: CapaExportData) {
   const children: Array<Paragraph | Table> = [
     new Paragraph({
       alignment: AlignmentType.CENTER,
-      children: [new TextRun({ text: 'CAPA REPORT', bold: true, size: 36, color: '111827' })],
+      spacing: { after: 200 },
+      children: [
+        new TextRun({ 
+          text: 'CAPA REPORT', 
+          bold: true, 
+          size: 44, 
+          color: '1E40AF',
+          font: 'Arial',
+        }),
+      ],
     }),
     new Paragraph({
       alignment: AlignmentType.CENTER,
-      children: [new TextRun({ text: `Generated ${new Date().toLocaleString()}`, size: 18, color: '6B7280' })],
+      spacing: { after: 100 },
+      children: [
+        new TextRun({ 
+          text: `CAPA Number: ${data.capa_number || 'N/A'}`, 
+          size: 20, 
+          color: '374151',
+          bold: true,
+        }),
+      ],
+    }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 400 },
+      children: [
+        new TextRun({ 
+          text: `Generated: ${new Date().toLocaleString()}`, 
+          size: 18, 
+          color: '6B7280',
+          italics: true,
+        }),
+      ],
     }),
     new Paragraph({ text: '' }),
     new Paragraph({
-      children: [new TextRun({ text: 'Approval', bold: true, size: 24, color: '1F2937' })],
+      spacing: { before: 200, after: 200 },
+      children: [
+        new TextRun({ 
+          text: 'Approval', 
+          bold: true, 
+          size: 28, 
+          color: '1F2937',
+          font: 'Arial',
+        }),
+      ],
     }),
   ];
 
@@ -300,19 +380,40 @@ async function generateDocx(filePath: string, data: CapaExportData) {
   }
 
   children.push(new Paragraph({ text: '' }));
+  children.push(new Paragraph({ text: '' }));
   children.push(
     new Paragraph({
-      children: [new TextRun({ text: 'CAPA Summary', bold: true, size: 24, color: '1F2937' })],
+      spacing: { before: 200, after: 200 },
+      border: {
+        top: { style: BorderStyle.SINGLE, size: 3, color: '3B82F6' },
+      },
+      children: [
+        new TextRun({ 
+          text: 'CAPA Summary', 
+          bold: true, 
+          size: 28, 
+          color: '1F2937',
+          font: 'Arial',
+        }),
+      ],
     })
   );
   children.push(
     new Paragraph({
-      children: [new TextRun({ text: 'Title: ', bold: true }), new TextRun(data.title || '-')],
+      spacing: { after: 100 },
+      children: [
+        new TextRun({ text: 'Title: ', bold: true, size: 22, color: '374151' }), 
+        new TextRun({ text: data.title || '-', size: 22 }),
+      ],
     })
   );
   children.push(
     new Paragraph({
-      children: [new TextRun({ text: 'Description: ', bold: true }), new TextRun(data.description || '-')],
+      spacing: { after: 200 },
+      children: [
+        new TextRun({ text: 'Description: ', bold: true, size: 22, color: '374151' }), 
+        new TextRun({ text: data.description || '-', size: 22 }),
+      ],
     })
   );
 
@@ -320,38 +421,108 @@ async function generateDocx(filePath: string, data: CapaExportData) {
     children.push(new Paragraph({ text: '' }));
     children.push(
       new Paragraph({
-        children: [new TextRun({ text: 'CAPA Details', bold: true, size: 24, color: '1F2937' })],
+        spacing: { before: 300, after: 200 },
+        border: {
+          top: { style: BorderStyle.SINGLE, size: 3, color: '3B82F6' },
+        },
+        children: [
+          new TextRun({ 
+            text: 'CAPA Details', 
+            bold: true, 
+            size: 28, 
+            color: '1F2937',
+            font: 'Arial',
+          }),
+        ],
       })
     );
     data.detail_items.forEach((item, index) => {
       children.push(
         new Paragraph({
-          children: [new TextRun({ text: `Detail ${index + 1}: ${item.title}`, bold: true, color: '111827' })],
+          spacing: { before: 200, after: 100 },
+          shading: { fill: 'F9FAFB' },
+          children: [
+            new TextRun({ 
+              text: `Detail ${index + 1}: ${item.title}`, 
+              bold: true, 
+              size: 24, 
+              color: '1E40AF',
+              font: 'Arial',
+            }),
+          ],
         })
       );
-      children.push(new Paragraph({ text: item.description || '-' }));
+      children.push(
+        new Paragraph({
+          spacing: { after: 200 },
+          children: [
+            new TextRun({ text: item.description || '-', size: 22 }),
+          ],
+        })
+      );
+      
       if (item.image_paths && item.image_paths.length > 0) {
-        item.image_paths.forEach((imgPath) => {
-          if (!fs.existsSync(imgPath)) {
-            children.push(new Paragraph({ text: `Missing: ${path.basename(imgPath)}` }));
+        item.image_paths.forEach((imgPath, imgIndex) => {
+          const resolvedPath = path.isAbsolute(imgPath) ? imgPath : path.resolve(__dirname, '../../..', imgPath);
+          
+          if (!fs.existsSync(resolvedPath)) {
+            children.push(
+              new Paragraph({
+                spacing: { after: 100 },
+                children: [
+                  new TextRun({ 
+                    text: `Image ${imgIndex + 1} missing: ${path.basename(imgPath)}`, 
+                    italics: true, 
+                    color: '9CA3AF',
+                    size: 18,
+                  }),
+                ],
+              })
+            );
             return;
           }
-          const imageBuffer = fs.readFileSync(imgPath);
-          children.push(
-            new Paragraph({
-              children: [new TextRun({ text: path.basename(imgPath), italics: true, color: '6B7280' })],
-            })
-          );
-          children.push(
-            new Paragraph({
-              children: [
-                new ImageRun({
-                  data: imageBuffer,
-                  transformation: { width: 480, height: 320 },
-                }),
-              ],
-            })
-          );
+          
+          try {
+            const imageBuffer = fs.readFileSync(resolvedPath);
+            children.push(
+              new Paragraph({
+                spacing: { before: 100, after: 50 },
+                children: [
+                  new TextRun({ 
+                    text: `Image ${imgIndex + 1}: ${path.basename(imgPath)}`, 
+                    italics: true, 
+                    color: '6B7280',
+                    size: 18,
+                  }),
+                ],
+              })
+            );
+            children.push(
+              new Paragraph({
+                alignment: AlignmentType.CENTER,
+                spacing: { after: 200 },
+                children: [
+                  new ImageRun({
+                    data: imageBuffer,
+                    transformation: { width: 500, height: 350 },
+                  }),
+                ],
+              })
+            );
+          } catch (imgError) {
+            children.push(
+              new Paragraph({
+                spacing: { after: 100 },
+                children: [
+                  new TextRun({ 
+                    text: `Error loading image ${imgIndex + 1}: ${path.basename(imgPath)}`, 
+                    color: 'EF4444',
+                    size: 18,
+                  }),
+                ],
+              })
+            );
+          }
         });
       }
     });
@@ -388,7 +559,19 @@ async function generateDocx(filePath: string, data: CapaExportData) {
     children.push(new Paragraph({ text: '' }));
     children.push(
       new Paragraph({
-        children: [new TextRun({ text: 'Custom Table', bold: true, size: 24, color: '1F2937' })],
+        spacing: { before: 300, after: 200 },
+        border: {
+          top: { style: BorderStyle.SINGLE, size: 3, color: '3B82F6' },
+        },
+        children: [
+          new TextRun({ 
+            text: 'Custom Table', 
+            bold: true, 
+            size: 28, 
+            color: '1F2937',
+            font: 'Arial',
+          }),
+        ],
       })
     );
     children.push(wordTable);
